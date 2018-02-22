@@ -149,6 +149,7 @@ int setup_vbi_parser( obe_sdi_non_display_data_t *non_display_data )
 
 #define REMOVE_LINES( num_lines ) \
     memmove( &sliced[i], &sliced[i+(num_lines)], (decoded_lines-i-(num_lines)) * sizeof(vbi_sliced) ); \
+    memset( &sliced[decoded_lines-num_lines], 0, num_lines * sizeof(vbi_sliced) ); \
     if( decoded_lines >= num_lines )  \
         decoded_lines -= num_lines; \
     i--; \
