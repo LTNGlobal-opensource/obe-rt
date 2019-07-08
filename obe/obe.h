@@ -110,6 +110,7 @@ typedef struct
     char *location;
 
     int card_idx;
+    char *ndi_name;
 
     int video_format;
     int video_connection;

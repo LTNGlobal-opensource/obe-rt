@@ -73,9 +73,9 @@ AC_CHECK_HEADERS([twolame.h],
                  [AC_MSG_ERROR([libtwolame headers not found or not usable])])
 
 AC_CHECK_HEADERS([Processing.NDI.Lib.h], HEADER_NDILIB="yes")
-#if test "x$HEADER_NDILIB" == "xyes" ; then
-#    LDFLAGS+=" -lx265 "
-#fi
+if test "x$HEADER_NDILIB" == "xyes" ; then
+    LDFLAGS+=" -lndi "
+fi
 AM_CONDITIONAL(NDILIB, test x"$HEADER_NDILIB" == x"yes")
 
 AC_CHECK_HEADERS([BlueDriver_p.h], HEADER_BLUEFISH444="yes")
