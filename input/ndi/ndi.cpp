@@ -177,17 +177,26 @@ if (fh) {
 }
 	return;
 #endif
+	int depth = 32;
 
-	uint8_t *data = (uint8_t *)calloc(16, frame->channel_stride_in_bytes);
-	memcpy(data, frame->p_data, frame->no_channels * frame->channel_stride_in_bytes);
+	NDIlib_audio_frame_interleaved_32s_t a_frame;
+	a_frame.p_data = new int32_t[frame->no_samples * frame->no_channels];
+	NDIlib_util_audio_to_interleaved_32s_v2(frame, &a_frame);
+
+	int linesize = a_frame.no_channels * (depth /8);
+	int stride  = a_frame.no_samples * (depth / 4);
+
+	uint8_t *data = (uint8_t *)calloc(16, stride);
+	memcpy(data, a_frame.p_data, a_frame.no_channels * stride);
 
 	rf->release_data = obe_release_audio_data;
 	rf->release_frame = obe_release_frame;
-	rf->audio_frame.num_samples = frame->no_samples;
-	rf->audio_frame.num_channels = frame->no_channels;
+	rf->audio_frame.num_samples = a_frame.no_samples;
 	rf->audio_frame.num_channels = 2;
 	rf->audio_frame.sample_fmt = AV_SAMPLE_FMT_S32P;
 	rf->input_stream_id = 1;
+
+	delete[] a_frame.p_data;
 
 	/* Allocate a new sample buffer ready to hold S32P */
 	if (av_samples_alloc(rf->audio_frame.audio_data,
@@ -209,14 +218,14 @@ printf("new linesize = %d\n", rf->audio_frame.linesize);
 	/* Convert input samples from S16 interleaved into S32P planer. */
 	uint8_t *src[16] = { 0 };
 
-for (int x = 0; x < opts->num_channels; x++) {
-	src[x] = data + (x * frame->channel_stride_in_bytes);
-	//printf("src[%d] %p\n", x, src[x]);
-}
+	for (int x = 0; x < opts->num_channels; x++) {
+		src[x] = data + (x * stride);
+		//printf("src[%d] %p\n", x, src[x]);
+	}
 
 	int out_samples = avresample_convert(ctx->avr,
 		rf->audio_frame.audio_data,
-		8, // rf->audio_frame.linesize,
+		rf->audio_frame.linesize,
 		rf->audio_frame.num_samples,
 		(uint8_t**)&src,
 		0,
@@ -618,7 +627,7 @@ printf("channel_stride_in_bytes = %d\n", audio_frame.channel_stride_in_bytes);
 	/* Give libavresample our custom audio channel map */
 	//av_opt_set_int(ctx->avr, "in_channel_layout",   (1 << opts->num_channels) - 1, 0 );
 	av_opt_set_int(ctx->avr, "in_channel_layout",   (1 << opts->num_channels) - 1, 0 );
-	av_opt_set_int(ctx->avr, "in_sample_fmt",       AV_SAMPLE_FMT_FLTP, 0 );
+	av_opt_set_int(ctx->avr, "in_sample_fmt",       AV_SAMPLE_FMT_S32, 0 );
 	av_opt_set_int(ctx->avr, "in_sample_rate",      48000, 0 );
 	av_opt_set_int(ctx->avr, "out_channel_layout",  (1 << opts->num_channels) - 1, 0 );
 	av_opt_set_int(ctx->avr, "out_sample_fmt",      AV_SAMPLE_FMT_S32P, 0 );

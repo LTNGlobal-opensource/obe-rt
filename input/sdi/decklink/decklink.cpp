@@ -261,16 +261,19 @@ typedef struct
     obe_t *h;
     BMDDisplayMode enabled_mode_id;
     const struct obe_to_decklink_video *enabled_mode_fmt;
-
+#if 0
     /* LIBKLVANC handle / context */
     struct klvanc_context_s *vanchdl;
 #define VANC_CACHE_DUMP_INTERVAL 60
+#endif
     time_t last_vanc_cache_dump;
 
     BMDTimeValue stream_time;
 
+#if 0
     /* SMPTE2038 packetizer */
     struct klvanc_smpte2038_packetizer_s *smpte2038_ctx;
+#endif
 
 #if KL_PRBS_INPUT
     struct prbs_context_s prbs;
@@ -406,7 +409,7 @@ static void convert_colorspace_and_parse_vanc(decklink_ctx_t *decklink_ctx, stru
 	uint16_t *p_anc = decoded_words;
 	if (klvanc_v210_line_to_nv20_c(src, p_anc, sizeof(decoded_words), (uiWidth / 6) * 6) < 0)
 		return;
-
+#if 0
     if (decklink_ctx->smpte2038_ctx)
         klvanc_smpte2038_packetizer_begin(decklink_ctx->smpte2038_ctx);
 
@@ -427,6 +430,7 @@ static void convert_colorspace_and_parse_vanc(decklink_ctx_t *decklink_ctx, stru
             }
         }
     }
+#endif
 
 }
 
@@ -688,7 +692,7 @@ private:
     uintptr_t ref_;
     decklink_opts_t *decklink_opts_;
 };
-
+#if 0
 static void _vanc_cache_dump(decklink_ctx_t *ctx)
 {
     if (ctx->vanchdl == NULL)
@@ -712,6 +716,7 @@ static void _vanc_cache_dump(decklink_ctx_t *ctx)
         }
     }
 }
+#endif
 
 #if KL_PRBS_INPUT
 static void dumpAudio(uint16_t *ptr, int fc, int num_channels)
@@ -1356,14 +1361,14 @@ HRESULT DeckLinkCaptureDelegate::VideoInputFrameArrived( IDeckLinkVideoInputFram
 
     if( decklink_opts_->probe_success )
         return S_OK;
-
+#if 0
     if (OPTION_ENABLED_(vanc_cache)) {
         if (decklink_ctx->last_vanc_cache_dump + VANC_CACHE_DUMP_INTERVAL <= time(0)) {
             decklink_ctx->last_vanc_cache_dump = time(0);
             _vanc_cache_dump(decklink_ctx);
         }
     }
-
+#endif
     av_init_packet( &pkt );
 
     if( videoframe )
@@ -1470,10 +1475,11 @@ HRESULT DeckLinkCaptureDelegate::VideoInputFrameArrived( IDeckLinkVideoInputFram
              * Some buggy decklink cards will randomly refuse access to a particular line so
              * work around this issue by blanking the line */
             if( ancillary->GetBufferForVerticalBlankingLine( line, &anc_line ) == S_OK ) {
-
+#if 0
                 /* Give libklvanc a chance to parse all vanc, and call our callbacks (same thread) */
                 convert_colorspace_and_parse_vanc(decklink_ctx, decklink_ctx->vanchdl,
                                                   (unsigned char *)anc_line, width, line);
+#endif
 
                 decklink_ctx->unpack_line( (uint32_t*)anc_line, anc_buf_pos, width );
             } else
@@ -1780,16 +1786,16 @@ static void close_card( decklink_opts_t *decklink_opts )
         avcodec_close( decklink_ctx->codec );
         av_free( decklink_ctx->codec );
     }
-
+#if 0
     if (decklink_ctx->vanchdl) {
         klvanc_context_destroy(decklink_ctx->vanchdl);
         decklink_ctx->vanchdl = 0;
     }
-
     if (decklink_ctx->smpte2038_ctx) {
         klvanc_smpte2038_packetizer_free(&decklink_ctx->smpte2038_ctx);
         decklink_ctx->smpte2038_ctx = 0;
     }
+#endif
 
     for (int i = 0; i < MAX_AUDIO_PAIRS; i++) {
         struct audio_pair_s *pair = &decklink_ctx->audio_pairs[i];
@@ -1807,6 +1813,8 @@ static void close_card( decklink_opts_t *decklink_opts )
 
 }
 
+
+#if 0
 /* VANC Callbacks */
 static int cb_EIA_708B(void *callback_context, struct klvanc_context_s *ctx, struct klvanc_packet_eia_708b_s *pkt)
 {
@@ -1829,6 +1837,7 @@ static int cb_EIA_608(void *callback_context, struct klvanc_context_s *ctx, stru
 
 	return 0;
 }
+#endif
 
 static int findOutputStreamIdByFormat(decklink_ctx_t *decklink_ctx, enum stream_type_e stype, enum stream_formats_e fmt)
 {
@@ -1884,6 +1893,7 @@ static int transmit_pes_to_muxer(decklink_ctx_t *decklink_ctx, uint8_t *buf, uin
 	return 0;
 }
 
+#if 0
 static int cb_SCTE_104(void *callback_context, struct klvanc_context_s *ctx, struct klvanc_packet_scte_104_s *pkt)
 {
 	/* It should be impossible to get here until the user has asked to enable SCTE35 */
@@ -1945,7 +1955,7 @@ static int cb_all(void *callback_context, struct klvanc_context_s *ctx, struct k
 	if (decklink_ctx->h->verbose_bitmask & INPUTSOURCE__SDI_VANC_DISCOVERY_DISPLAY) {
 		printf("%s()\n", __func__);
 	}
-
+#if 0
 	/* We've been called with a VANC frame. Pass it to the SMPTE2038 packetizer.
 	 * We'll be called here from the thread handing the VideoFrameArrived
 	 * callback, which calls vanc_packet_parse for each ANC line.
@@ -1955,6 +1965,7 @@ static int cb_all(void *callback_context, struct klvanc_context_s *ctx, struct k
 		if (klvanc_smpte2038_packetizer_append(decklink_ctx->smpte2038_ctx, pkt) < 0) {
 		}
 	}
+#endif
 
 	decklink_opts_t *decklink_opts = container_of(decklink_ctx, decklink_opts_t, decklink_ctx);
 	if (OPTION_ENABLED(patch1) && decklink_ctx->vanchdl && pkt->did == 0x52 && pkt->dbnsdid == 0x01) {
@@ -2008,6 +2019,7 @@ static struct klvanc_callbacks_s callbacks =
 };
 /* End: VANC Callbacks */
 
+#endif
 static void * detector_callback(void *user_context,
         struct smpte337_detector_s *ctx,
         uint8_t datamode, uint8_t datatype, uint32_t payload_bitCount, uint8_t *payload)
@@ -2058,6 +2070,7 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
     const struct obe_to_decklink_video *fmt = NULL;
     IDeckLinkStatus *status = NULL;
 
+#if 0
     if (klvanc_context_create(&decklink_ctx->vanchdl) < 0) {
         fprintf(stderr, "[decklink] Error initializing VANC library context\n");
     } else {
@@ -2073,7 +2086,6 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
             klvanc_context_enable_cache(decklink_ctx->vanchdl);
         }
     }
-
     if (OPTION_ENABLED(frame_injection)) {
         klsyslog_and_stdout(LOG_INFO, "Enabling option frame injection");
         g_decklink_inject_frame_enable = 1;
@@ -2094,6 +2106,7 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
             fprintf(stderr, "Unable to allocate a SMPTE2038 context.\n");
         }
     }
+#endif
 
     for (int i = 0; i < MAX_AUDIO_PAIRS; i++) {
         struct audio_pair_s *pair = &decklink_ctx->audio_pairs[i];
