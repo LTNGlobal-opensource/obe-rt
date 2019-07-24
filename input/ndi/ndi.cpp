@@ -98,6 +98,11 @@ static int lookupOBEName(int w, int h, int den, int num)
 typedef struct
 {
 	uint64_t v_counter;
+	uint64_t a_counter;
+	int	reset_v_pts;
+	int	reset_a_pts;
+	int64_t	clock_offset;
+
 
 	/* NDI SDK related */
 	NDIlib_recv_instance_t pNDI_recv;
@@ -149,6 +154,10 @@ typedef struct
 static void processFrameAudio(ndi_opts_t *opts, NDIlib_audio_frame_v2_t *frame)
 {
 	ndi_ctx_t *ctx = &opts->ctx;
+
+	if (ctx->clock_offset == 0) {
+	   return;
+	}
 
 #if 0
 printf("sample_rate = %d\n", frame->sample_rate);
@@ -236,11 +245,17 @@ printf("new linesize = %d\n", rf->audio_frame.linesize);
 	}
 
 	free(data);
+        if (ctx->reset_a_pts == 1) {
+           int64_t timecode_pts = av_rescale_q(frame->timecode, (AVRational){1, 10000000}, (AVRational){1, OBE_CLOCK} );
+	   timecode_pts = timecode_pts + ctx->clock_offset;
+           int64_t pts_diff = av_rescale_q(1, (AVRational){frame->no_samples, frame->sample_rate}, (AVRational){1, OBE_CLOCK} );
+           int q = timecode_pts / pts_diff + (timecode_pts % pts_diff > 0);
+           ctx->a_counter = q;
+           ctx->reset_a_pts = 0;
+        }
 
-// MMM
-//		int64_t pts = av_rescale_q(v4l2_ctx->a_counter++, v4l2_ctx->v_timebase, (AVRational){1, OBE_CLOCK} );
-		//obe_clock_tick(v4l2_ctx->h, pts);
-	int64_t pts = 0;
+	int64_t pts = av_rescale_q(ctx->a_counter++, (AVRational){frame->no_samples, frame->sample_rate}, (AVRational){1, OBE_CLOCK} ); 
+	//printf("Audio PTS is: %d\n", pts);
 	rf->pts = pts;
 
 	/* AVFM */
@@ -296,6 +311,21 @@ lastTimestamp = frame->timestamp;
 	rf->alloc_img.stride[2] = opts->width / 2;
 	rf->alloc_img.stride[3] = 0;
 
+	if (ctx->v_counter == 0) {
+	   int64_t timecode_pts = av_rescale_q(frame->timecode, (AVRational){1, 10000000}, (AVRational){1, OBE_CLOCK} );
+	   ctx->clock_offset = (timecode_pts * -1);
+	   printf("Clock offset established as %" PRIi64 "\n", ctx->clock_offset);
+	}
+	if (ctx->reset_v_pts == 1) {
+	   int64_t timecode_pts = av_rescale_q(frame->timecode, (AVRational){1, 10000000}, (AVRational){1, OBE_CLOCK});
+	   timecode_pts = timecode_pts + ctx->clock_offset;
+	   int64_t pts_diff = av_rescale_q(1, ctx->v_timebase, (AVRational){1, OBE_CLOCK} );
+	   int q = timecode_pts / pts_diff + (timecode_pts % pts_diff > 0);
+	   printf("Q is %d\n",q);
+	   ctx->v_counter = q;
+	   ctx->reset_v_pts = 0;
+	}
+
 	int64_t pts = av_rescale_q(ctx->v_counter++, ctx->v_timebase, (AVRational){1, OBE_CLOCK} );
 	obe_clock_tick(ctx->h, pts);
 	rf->pts = pts;
@@ -347,6 +377,8 @@ static void *ndi_videoThreadFunc(void *p)
 	printf(MODULE_PREFIX "Video thread starts\n");
 
 	ctx->v_counter = 0;
+	ctx->a_counter = 0;
+	ctx->clock_offset = 0;
 	ctx->vthreadRunning = 1;
 	ctx->vthreadComplete = 0;
 	ctx->vthreadTerminate = 0;
@@ -359,7 +391,10 @@ static void *ndi_videoThreadFunc(void *p)
 		NDIlib_tally_t tally (true);
 		NDIlib_recv_set_tally(ctx->pNDI_recv, &tally);
 
-		switch (NDIlib_recv_capture_v2(ctx->pNDI_recv, &video_frame, &audio_frame, &metadata, 80)) {
+		int timeout = av_rescale_q(1000, ctx->v_timebase, (AVRational){1, 1});
+		timeout = timeout + 40;
+
+		switch (NDIlib_recv_capture_v2(ctx->pNDI_recv, &video_frame, &audio_frame, &metadata, timeout)) {
 			case NDIlib_frame_type_video:
 				processFrameVideo(opts, &video_frame);
 				NDIlib_recv_free_video_v2(ctx->pNDI_recv, &video_frame);
@@ -372,6 +407,10 @@ static void *ndi_videoThreadFunc(void *p)
                                 printf("Metadata content: %s\n", metadata.p_data);
                                 NDIlib_recv_free_metadata(ctx->pNDI_recv, &metadata);
                                 break;
+			case NDIlib_frame_type_none:
+				printf("Frame time exceeded timeout of: %d\n", timeout);
+				ctx->reset_v_pts = 1;
+				ctx->reset_a_pts = 1;
 			default:
 				printf("no frame?\n");
 		}
@@ -797,6 +836,8 @@ static void *ndi_open_input(void *ptr)
 	ctx->device = device;
 	ctx->h = h;
 	ctx->v_counter = 0;
+	ctx->a_counter = 0;
+        ctx->clock_offset = 0;
 
 	if (open_device(opts) < 0)
 		return NULL;
