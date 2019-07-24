@@ -253,9 +253,10 @@ printf("new linesize = %d\n", rf->audio_frame.linesize);
            ctx->a_counter = q;
            ctx->reset_a_pts = 0;
         }
-
+// MMM
+//		int64_t pts = av_rescale_q(v4l2_ctx->a_counter++, v4l2_ctx->v_timebase, (AVRational){1, OBE_CLOCK} );
+		//obe_clock_tick(v4l2_ctx->h, pts);
 	int64_t pts = av_rescale_q(ctx->a_counter++, (AVRational){frame->no_samples, frame->sample_rate}, (AVRational){1, OBE_CLOCK} ); 
-	//printf("Audio PTS is: %d\n", pts);
 	rf->pts = pts;
 
 	/* AVFM */
