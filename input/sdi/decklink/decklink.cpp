@@ -2336,7 +2336,7 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
     }
 
     if (decklink_opts->video_format == INPUT_VIDEO_FORMAT_UNDEFINED && decklink_opts->probe) {
-        decklink_opts->video_format = INPUT_VIDEO_FORMAT_PAL;
+        decklink_opts->video_format = INPUT_VIDEO_FORMAT_NTSC;
     }
     fmt = getVideoFormatByOBEName(decklink_opts->video_format);
 
