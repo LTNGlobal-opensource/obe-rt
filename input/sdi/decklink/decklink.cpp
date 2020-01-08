@@ -2432,7 +2432,7 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
      * configure HW for 1080P60 and let detection take care of things.
      */
     if (decklink_ctx->enabled_mode_id == start_mode_id) {
-        start_mode_id = bmdModeHD1080p6000;
+        start_mode_id = bmdModeHD1080p2398;
     }
     //printf("%s() startup. calling enable video with startup mode %s flags 0x%x\n", __func__, getModeName(start_mode_id), flags);
     result = decklink_ctx->p_input->EnableVideoInput(start_mode_id, bmdFormat10BitYUV, flags);
