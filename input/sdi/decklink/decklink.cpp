@@ -2626,7 +2626,9 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
     const int   sample_rate = 48000;
     BMDDisplayMode wanted_mode_id;
     BMDDisplayMode start_mode_id = bmdModeNTSC;
+#if BLACKMAGIC_DECKLINK_API_VERSION < 0x0c090000 /* 12.9 */
     IDeckLinkAttributes *decklink_attributes = NULL;
+#endif
     uint32_t    flags = 0;
     bool        supported;
 
@@ -2635,7 +2637,9 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
     IDeckLinkIterator *decklink_iterator = NULL;
     HRESULT result;
 #if BLACKMAGIC_DECKLINK_API_VERSION >= 0x0a080500 /* 10.8.5 */
+#if BLACKMAGIC_DECKLINK_API_VERSION < 0x0c090000 /* 12.9 */
     IDeckLinkStatus *status = NULL;
+#endif
 #endif
 
     /* Avoid compilier bug that throws a spurious warning because it thinks fmt
@@ -2792,7 +2796,16 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
         goto finish;
     }
 
+
+    decklink_ctx->isHalfDuplex = 0;
 #if BLACKMAGIC_DECKLINK_API_VERSION >= 0x0a080500 /* 10.8.5 */
+    /* The half duplex detection is used by other parts of the stack
+     * to help assist with audio/video sync issues during loss of signal conditions.
+     * For 12.9 we're going to assume no issues exist, and if they do we'll discover them
+     * doing testing and come back here to investigate/remedy anyway.
+     * So for 12.9, we're going to assume full duplex timing behaviour by default.
+     */
+#if BLACKMAGIC_DECKLINK_API_VERSION < 0x0c090000 /* 12.9 */
     if (decklink_ctx->p_card->QueryInterface(IID_IDeckLinkStatus, (void**)&status) == S_OK) {
         int64_t ds = bmdDuplexStatusFullDuplex;
         if (status->GetInt(bmdDeckLinkStatusDuplexMode, &ds) == S_OK) {
@@ -2807,8 +2820,7 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
             decklink_ctx->isHalfDuplex = 0;
         }
     }
-#else
-    decklink_ctx->isHalfDuplex = 0;
+#endif
 #endif
 
     /* Set up the video and audio sources. */
@@ -2841,6 +2853,7 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
         goto finish;
     }
 
+#if BLACKMAGIC_DECKLINK_API_VERSION < 0x0c090000 /* 12.9 */
     result = decklink_ctx->p_card->QueryInterface(IID_IDeckLinkAttributes, (void**)&decklink_attributes );
     if( result != S_OK )
     {
@@ -2856,7 +2869,14 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
         ret = -1;
         goto finish;
     }
-
+#else
+    /* Format detction is known to work with 10.8 and higher. For 12.9 we're just going
+     * to flag this as supported and not check.
+     * If for some reason format detection proves unreluable or is a regression, we'll 
+     * discover this during testing and revisit.
+     */
+    supported = allowFormatDetection;
+#endif
     if (supported && allowFormatDetection)
         flags = bmdVideoInputEnableFormatDetection;
 
@@ -3033,8 +3053,10 @@ finish:
     if( p_display_iterator )
         p_display_iterator->Release();
 
+#if BLACKMAGIC_DECKLINK_API_VERSION < 0x0c090000 /* 12.9 */
     if( decklink_attributes )
         decklink_attributes->Release();
+#endif
 
     if( ret )
         close_card( decklink_opts );
