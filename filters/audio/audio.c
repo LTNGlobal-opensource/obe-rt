@@ -3,6 +3,10 @@
  *****************************************************************************
  * Copyright (C) 2012 Open Broadcast Systems Ltd
  *
+ * The entire purpose of this filter is to take in (typically) the entire 16
+ * channels of SDI audio, then create multiple new outputs, one for each audio encoder,
+ * with the correct audio channels present.
+ * 
  * Authors: Kieran Kunhya <kieran@kunhya.com>
  *
  * This program is free software; you can redistribute it and/or modify
