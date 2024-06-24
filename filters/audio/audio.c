@@ -46,6 +46,201 @@
  */
 int g_filter_audio_effect_pcm = 0;
 
+static void obe_aud_filter_mute_samples(obe_output_stream_t *output_stream, obe_raw_frame_t *rf)
+{
+    for (int i = 0; i < output_stream->audio_mute_count; i++) {
+        if (output_stream->audio_mute_table[i].enabled) {
+            int i_src = output_stream->audio_mute_table[i].mute;
+            memset(rf->audio_frame.audio_data[i_src - 1], 0, rf->audio_frame.num_samples * 4);
+        } else {
+            /* Finish early, because the mute rules are added top to bottom. */
+            return;
+        }
+    }
+}
+
+/* Take a raw frame will all of the SDI samples 16 channels.
+ * Use the remap rule table to re-assign the samples into new channels
+ * Copy those channels by running through the table and copying src to dst samples.
+ */
+static obe_raw_frame_t *obe_aud_filter_remap_samples(obe_output_stream_t *output_stream, obe_raw_frame_t *rf)
+{
+#if LOCAL_DEBUG
+    printf("audio linesize %d, sfc %d, rf->audio_frame.num_samples, chan %d\n",
+        rf->audio_frame.linesize,
+        rf->audio_frame.num_samples,
+        rf->audio_frame.num_channels);
+#endif
+
+    obe_raw_frame_t *nrf = new_raw_frame();
+    memcpy(nrf, rf, sizeof(*rf));
+
+    int l = nrf->audio_frame.num_channels * nrf->audio_frame.num_samples * 4;
+    nrf->audio_frame.audio_data[0] = (uint8_t *)malloc(l);
+
+    memcpy(nrf->audio_frame.audio_data[0], rf->audio_frame.audio_data[0], l);
+
+    for (int i = 1; i < MAX_CHANNELS; i++) {
+        nrf->audio_frame.audio_data[i] = nrf->audio_frame.audio_data[0] + (i * nrf->audio_frame.linesize);
+    }
+
+#if 0
+    for (int i = 0; i < MAX_CHANNELS; i++) {
+        printf("CH%02d: %p becomes %p\n", i, rf->audio_frame.audio_data[i], nrf->audio_frame.audio_data[i]);
+    }
+#endif
+
+    for (int i = 0; i < output_stream->audio_remap_count; i++) {
+        if (output_stream->audio_remap_table[i].enabled) {
+            int src = output_stream->audio_remap_table[i].src;
+            int dst = output_stream->audio_remap_table[i].dst;
+
+            /* Copy the entire plan from src to dst. */
+            memcpy(nrf->audio_frame.audio_data[dst - 1], nrf->audio_frame.audio_data[src -1], nrf->audio_frame.num_samples * 4);
+
+            /* Or, instead of memcpy, we can tamper with the plane pointers, easier */
+        }
+    }
+
+    return nrf;
+}
+
+static int obe_aud_filter_remapping_reset(obe_output_stream_t *output_stream)
+{
+    memset(&output_stream->audio_remap_table[0], 0, sizeof(output_stream->audio_remap_table));
+    return 0;
+}
+
+static void obe_aud_filter_remapping_dump(obe_output_stream_t *output_stream)
+{
+    for (int i = 0; i < AUDIO_REMAP_RULES_MAX; i++) {
+        if (output_stream->audio_remap_table[i].enabled == 1) {
+            printf(MODULE_PREFIX "active remap rule[%02d]: %2d to %2d, output_stream_id %d\n", i,
+                output_stream->audio_remap_table[i].src,
+                output_stream->audio_remap_table[i].dst,
+                output_stream->output_stream_id);
+        }
+    }
+}
+
+static int obe_aud_filter_remapping_rule_add(obe_output_stream_t *output_stream, unsigned int src, unsigned int dst)
+{
+    for (int i = 0; i < AUDIO_REMAP_RULES_MAX; i++) {
+
+        if (output_stream->audio_remap_table[i].enabled == 0) {
+
+            output_stream->audio_remap_table[i].enabled = 1;
+            output_stream->audio_remap_table[i].src = src;
+            output_stream->audio_remap_table[i].dst = dst;
+#if LOCAL_DEBUG
+            printf(MODULE_PREFIX "adding remap rule[%02d]: %2d to %2d, output_stream_id %d\n",
+                output_stream->audio_remap_count, src, dst,
+                output_stream->output_stream_id);
+#endif
+            output_stream->audio_remap_count++;
+
+            break;
+        }
+
+    }
+
+    return 0;
+}
+
+static int audio_remapping_configure(obe_output_stream_t *output_stream)
+{
+    /* Convert a static string passed by the configuration into a baseic set of transform rules
+     * <1..16:1..16>
+     * from:to
+     * 
+     * Don't allow remapping from the sample channel to the same channel, Eg: 3:3
+     * Don't allow numbers < 1 or > 16
+     * Allow a maximum number of rules.
+     * Don't allow badly formed rules
+     */
+
+    obe_aud_filter_remapping_reset(output_stream);
+
+    int rule_count = 0;
+    char *save = NULL;
+    char tmp[256] = { 0 };
+    strcpy(tmp, output_stream->audio_remap);
+
+    char *rule = strtok_r(tmp, "-", &save);
+    while (rule) {
+        char *save2 = NULL;
+        char *map = strdup(rule);
+
+        int ignore = 0;
+        int i_src, i_dst;
+
+        char *src = strtok_r(map, "_", &save2);
+        if (src == NULL) {
+            fprintf(stderr, MODULE_PREFIX "remap rule: %s -- illegal - ignoring\n", rule);
+            ignore++;
+        } else {
+            i_src = atoi(src);
+            if (i_src < 1 || i_src > 16) {
+                fprintf(stderr, MODULE_PREFIX "remap rule: %2d to NN -- illegal - ignoring\n", i_src);
+                ignore++;
+            }
+        }
+
+        char *dst = strtok_r(NULL, "_", &save2);
+        if (dst == NULL) {
+            fprintf(stderr, MODULE_PREFIX "remap rule: %s -- illegal - ignoring\n", rule);
+            ignore++;
+        } else {
+            i_dst = atoi(dst);
+            if (i_dst < 1 || i_dst > 16) {
+                fprintf(stderr, MODULE_PREFIX "remap rule: %2d to NN -- illegal - ignoring\n", i_dst);
+                ignore++;
+            }
+        }
+
+        if (ignore == 0) {
+            obe_aud_filter_remapping_rule_add(output_stream, i_src, i_dst);
+        }
+
+        free(map);
+        rule = strtok_r(NULL, "-", &save);
+    };
+
+    return rule_count;
+}
+
+static int audio_mute_configure(obe_output_stream_t *output_stream)
+{
+    int rule_count = 0;
+    char *save = NULL;
+    char tmp[256] = { 0 };
+    strcpy(tmp, output_stream->audio_mute);
+
+    char *rule = strtok_r(tmp, "_", &save);
+    while (rule) {
+        int i_src = atoi(rule);
+        int ignore = 0;
+
+        if (i_src < 1 || i_src > 6) {
+            fprintf(stderr, MODULE_PREFIX "mute rule: %2d to NN -- illegal - ignoring\n", i_src);
+            ignore++;
+        }
+
+        if (ignore == 0) {
+            for (int i = 0; i < AUDIO_MUTE_RULES_MAX; i++) {
+                if (output_stream->audio_mute_table[i].enabled == 0) {
+                    output_stream->audio_mute_table[i].enabled = 1;
+                    output_stream->audio_mute_table[i].mute = i_src;
+                    output_stream->audio_mute_count++;
+                }
+            }
+        }
+        
+        rule = strtok_r(NULL, "_", &save);
+    };
+
+    return rule_count;
+}
 
 static double compute_dB__to_scaler(const char *dbval)
 {
@@ -96,7 +291,7 @@ static void applyGain(obe_output_stream_t *output_stream, obe_raw_frame_t *rf, d
     }
 }
 
-static void applyEffects(obe_raw_frame_t *rf)
+static void applyEffects(obe_output_stream_t *output_stream, obe_raw_frame_t *rf)
 {
     if (g_filter_audio_effect_pcm & 0x03) {
         /* Mute audio right (or left or both) - assumption 32bit samples S32P from decklink */
@@ -207,6 +402,9 @@ static void *start_filter_audio( void *ptr )
                 getpid(), output_stream->output_stream_id, num_channels);
         }
 
+        audio_remapping_configure(output_stream);
+        audio_mute_configure(output_stream);
+        obe_aud_filter_remapping_dump(output_stream);
     }
 
     while( 1 )
@@ -252,6 +450,7 @@ static void *start_filter_audio( void *ptr )
             printf("%s() encoder#%d: output_stream->sdi_audio_pair %d, num_channels %d\n", __func__, i,
                 output_stream->sdi_audio_pair, num_channels);
 #endif
+
             split_raw_frame = new_raw_frame();
             if (!split_raw_frame)
             {
@@ -271,9 +470,6 @@ static void *start_filter_audio( void *ptr )
                 return NULL;
             }
 
-            /* Copy samples for each channel into a new buffer, so each downstream encoder can
-             * compress the channels the user has selected via sdi_audio_pair.
-             */
 #if LOCAL_DEBUG
 printf("%s() output_stream->mono_channel %d", __func__, output_stream->mono_channel);
 printf(" num_channels %d", num_channels);
@@ -281,18 +477,52 @@ printf(" split_raw_frame->audio_frame.num_samples %d", split_raw_frame->audio_fr
 printf(" split_raw_frame->audio_frame.sample_fmt %d", split_raw_frame->audio_frame.sample_fmt);
 printf(" split_raw_frame->audio_frame.linesize %d", split_raw_frame->audio_frame.linesize);
 #endif
-            av_samples_copy(split_raw_frame->audio_frame.audio_data, /* dst */
-                            &raw_frame->audio_frame.audio_data[((output_stream->sdi_audio_pair - 1) << 1) + output_stream->mono_channel], /* src */
-                            0, /* dst offset */
-                            0, /* src offset */
-                            split_raw_frame->audio_frame.num_samples,
-                            num_channels,
-                            split_raw_frame->audio_frame.sample_fmt);
 
-            applyEffects(split_raw_frame);
+
+            if (output_stream->audio_remap_count > 0) {
+                /* Audio Remapping done here.
+                 * Duplicate the original raw. Adjust it, the copy ot into the split_raw_frame object.
+                 * Free out newly created raw frame (and it's duplicated samples)
+                 */
+                obe_raw_frame_t *rf = obe_aud_filter_remap_samples(output_stream, raw_frame);
+
+                /* Copy samples for each channel into a new buffer, so each downstream encoder can
+                 * compress the channels the user has selected via sdi_audio_pair.
+                 */
+                av_samples_copy(split_raw_frame->audio_frame.audio_data, /* dst */
+                                &rf->audio_frame.audio_data[((output_stream->sdi_audio_pair - 1) << 1) + output_stream->mono_channel], /* src */
+                                0, /* dst offset */
+                                0, /* src offset */
+                                split_raw_frame->audio_frame.num_samples,
+                                num_channels,
+                                split_raw_frame->audio_frame.sample_fmt);
+                free(rf->audio_frame.audio_data[0]);
+                free(rf);
+            } else {
+                /* No audio remapping - the default typical use case */
+                /* Copy samples for each channel into a new buffer, so each downstream encoder can
+                 * compress the channels the user has selected via sdi_audio_pair.
+                 */
+                av_samples_copy(split_raw_frame->audio_frame.audio_data, /* dst */
+                                &raw_frame->audio_frame.audio_data[((output_stream->sdi_audio_pair - 1) << 1) + output_stream->mono_channel], /* src */
+                                0, /* dst offset */
+                                0, /* src offset */
+                                split_raw_frame->audio_frame.num_samples,
+                                num_channels,
+                                split_raw_frame->audio_frame.sample_fmt);
+            }
+
+            /* Apply muting here */
+
+            /* Audio Effects */
+            applyEffects(output_stream, split_raw_frame);
 
             if ((num_channels == 2 || num_channels == 6) && strlen(output_stream->gain_db) > 0) {
                 applyGain(output_stream, split_raw_frame, output_stream->audioGain);
+            }
+
+            if (output_stream->audio_mute_count > 0) {
+                obe_aud_filter_mute_samples(output_stream, split_raw_frame);
             }
 
 #if LOCAL_DEBUG

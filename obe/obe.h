@@ -424,9 +424,32 @@ typedef struct
     /* MPEG-TS */
     obe_ts_stream_opts_t ts_opts;
 
+    /* In order of execution, the following processes are applied in order.
+     * Audio channel remapping
+     * Audio Effects
+     * Audio Gain.
+     */
+    char audio_remap[256];
+#define AUDIO_REMAP_RULES_MAX 32
+    int audio_remap_count; /* 0, disabled or number of rules in table */
+    struct {
+        int enabled;
+        int src, dst;
+    } audio_remap_table[AUDIO_REMAP_RULES_MAX];
+
+    /* Audio channel Mute Effect */
+#define AUDIO_MUTE_RULES_MAX 32
+    char audio_mute[256];
+    int audio_mute_count;
+    struct {
+        int enabled;
+        int mute;
+    } audio_mute_table[AUDIO_MUTE_RULES_MAX];
+
+    /* Audio Gain adjustments */
     char gain_db[16];
     double audioGain;
-    
+
 } obe_output_stream_t;
 
 int obe_setup_streams( obe_t *h, obe_output_stream_t *output_streams, int num_streams );

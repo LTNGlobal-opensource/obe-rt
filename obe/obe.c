@@ -1733,6 +1733,7 @@ int obe_start( obe_t *h )
     ltnpthread_setname_np(h->mux_thread, "obe-muxer");
 
     /* Open Filter Thread */
+    int audio_done = 0;
     for( int i = 0; i < h->devices[0]->num_input_streams; i++ )
     {
         input_stream = h->devices[0]->input_streams[i];
@@ -1787,6 +1788,8 @@ int obe_start( obe_t *h )
                     goto fail;
                 }
                 ltnpthread_setname_np(h->filters[h->num_filters]->filter_thread, "obe-vid-filter");
+                h->num_filters++;
+
 #if 0
 PRINT_OBE_FILTER(h->filters[h->num_filters], "VIDEO FILTER");
 #endif
@@ -1796,25 +1799,29 @@ PRINT_OBE_FILTER(h->filters[h->num_filters], "VIDEO FILTER");
 #if 0
 PRINT_OBE_FILTER(h->filters[h->num_filters], "AUDIO FILTER");
 #endif
-                aud_filter_params = calloc( 1, sizeof(*aud_filter_params) );
-                if( !aud_filter_params )
-                {
-                    fprintf( stderr, "Malloc failed\n" );
-                    goto fail;
-                }
 
-                aud_filter_params->h = h;
-                aud_filter_params->filter = h->filters[h->num_filters];
+                if (!audio_done) {
+                    aud_filter_params = calloc( 1, sizeof(*aud_filter_params) );
+                    if( !aud_filter_params )
+                    {
+                        fprintf( stderr, "Malloc failed\n" );
+                        goto fail;
+                    }
 
-                if( pthread_create( &h->filters[h->num_filters]->filter_thread, NULL, audio_filter.start_filter, aud_filter_params ) < 0 )
-                {
-                    fprintf( stderr, "Couldn't create filter thread \n" );
-                    goto fail;
+                    aud_filter_params->h = h;
+                    aud_filter_params->filter = h->filters[h->num_filters];
+
+                    if( pthread_create( &h->filters[h->num_filters]->filter_thread, NULL, audio_filter.start_filter, aud_filter_params ) < 0 )
+                    {
+                        fprintf( stderr, "Couldn't create filter thread \n" );
+                        goto fail;
+                    }
+                    ltnpthread_setname_np(h->filters[h->num_filters]->filter_thread, "obe-aud-filter");
+                    audio_done++;
+                    h->num_filters++;
+
                 }
-                ltnpthread_setname_np(h->filters[h->num_filters]->filter_thread, "obe-aud-filter");
             }
-
-            h->num_filters++;
         }
     }
 

@@ -177,6 +177,8 @@ static const char * stream_opts[] = { "action", "format",
                                       "dialnorm", /* 46 */
                                       "ttx-reverse", /* 47 */
                                       "gain", /* 48 */
+                                      "remap", /* 49 */
+                                      "mute", /* 50 */
                                       NULL };
 
 static const char * muxer_opts[]  = { "ts-type", "cbr", "ts-muxrate", "passthrough", "ts-id", "program-num", "pmt-pid", "pcr-pid",
@@ -798,8 +800,14 @@ static int set_stream( char *command, obecli_command_t *child )
             /* MP2 options */
             char *mp2_mode    = obe_get_option( stream_opts[27], opts );
 
-            /* Audio Gain Options. 0dB is effectively no gain adjustment. Eg 0dB, 3dB -4dB, etc*/
+            /* Audio Gain Options. 0dB is effectively no gain adjustment. Eg 0dB, 3dB -4dB, etc */
             char *gain_db    = obe_get_option( stream_opts[48], opts );
+
+            /* Audio Remapping Options.  */
+            char *audio_remap = obe_get_option( stream_opts[49], opts );
+
+            /* Audio Muting Options.  */
+            char *audio_mute = obe_get_option( stream_opts[50], opts );
 
             /* NB: remap these and the ttx values below if more encoding options are added - TODO: split them up */
             char *pid         = obe_get_option( stream_opts[28], opts );
@@ -1117,6 +1125,27 @@ extern char g_video_encoder_tuning_name[64];
                 } else {
                     cli.output_streams[output_stream_id].gain_db[0] = 0;
                     cli.output_streams[output_stream_id].audioGain = 0.0;
+                }
+
+                cli.output_streams[output_stream_id].audio_remap_count = 0;
+                if (audio_remap) {
+                    /* Add the dB suffix so operators don't get this wrong */
+                    strncpy(&cli.output_streams[output_stream_id].audio_remap[0],
+                        audio_remap,
+                        sizeof(cli.output_streams[output_stream_id].audio_remap));
+                    cli.output_streams[output_stream_id].audioGain = 1.0;
+                } else {
+                    cli.output_streams[output_stream_id].audio_remap[0] = 0;
+                }
+
+                cli.output_streams[output_stream_id].audio_mute[0] = 0;
+                if (audio_mute) {
+                    /* Add the dB suffix so operators don't get this wrong */
+                    strncpy(&cli.output_streams[output_stream_id].audio_mute[0],
+                        audio_mute,
+                        sizeof(cli.output_streams[output_stream_id].audio_mute));
+                } else {
+                    cli.output_streams[output_stream_id].audio_mute_count = 0;
                 }
 
                 if( cli.output_streams[output_stream_id].stream_format == AUDIO_MP2 )
