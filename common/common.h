@@ -459,7 +459,6 @@ typedef struct
     // TODO channel order
     // TODO audio metadata
 
-    int valid_timecode;
     obe_timecode_t timecode;
 
     int reset_obe;
