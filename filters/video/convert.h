@@ -3,7 +3,7 @@
 
 struct filter_compress_ctx;
 
-int  filter_compress_alloc(struct filter_compress_ctx **ctx, uint32_t instanceNr);
+int  filter_compress_alloc(struct filter_compress_ctx **ctx, const char *filename);
 void filter_compress_free(struct filter_compress_ctx *ctx);
 int  filter_compress_jpg(struct filter_compress_ctx *ctx, obe_raw_frame_t *rf);
 

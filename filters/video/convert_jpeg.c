@@ -9,21 +9,22 @@
 struct filter_compress_ctx
 {
 	time_t lastFrameTime;
-	uint32_t instanceNr;
+	char *filename;
 };
 
 void filter_compress_free(struct filter_compress_ctx *ctx)
 {
+	free(ctx->filename);
 	free(ctx);
 }
 
-int filter_compress_alloc(struct filter_compress_ctx **p, uint32_t instanceNr)
+int filter_compress_alloc(struct filter_compress_ctx **p, const char *filename)
 {
 	struct filter_compress_ctx *ctx = calloc(1, sizeof(*ctx));
 	if (!ctx)
 		return -1;
 
-	ctx->instanceNr = instanceNr;
+	ctx->filename = strdup(filename);
 
 	*p = ctx;
 	return 0;
@@ -107,15 +108,14 @@ int filter_compress_jpg(struct filter_compress_ctx *ctx, obe_raw_frame_t *rf)
 		ltn_ws_set_thumbnail_jpg(g_ltn_ws_handle, pkt.data, pkt.size);
 #endif
 
-		char ofn[256], nfn[256];
-		sprintf(ofn, "/tmp/image%02d.jpg.new", ctx->instanceNr);
-		sprintf(nfn, "/tmp/image%02d.jpg", ctx->instanceNr);
+		char ofn[256];
+		sprintf(ofn, "%s.new", ctx->filename);
 
 		FILE *f = fopen(ofn, "wb");
 		if (f) {
 			fwrite(pkt.data, 1, pkt.size, f);
 			fclose(f);
-			rename(ofn, nfn);
+			rename(ofn, ctx->filename);
 		}
 
 		av_packet_unref(&pkt);
