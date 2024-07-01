@@ -30,6 +30,7 @@
 #include "encoders/codec_metadata.h"
 #include <libavutil/mathematics.h>
 #include <libklscte35/scte35.h>
+#include "common/timecode.h"
 
 #include <histogram.h>
 
@@ -43,6 +44,7 @@
 int64_t cpb_removal_time = 0;
 int64_t g_x264_monitor_bps = 0;
 int g_x264_nal_debug = 0;
+extern uint64_t g_scte35_trigger_count;
 
 #if DEV_DOWN_UP
 #include <libavutil/pixfmt.h>
@@ -436,6 +438,8 @@ static void *x264_start_encoder( void *ptr )
     int64_t last_raw_frame_pts = 0;
     int64_t current_raw_frame_pts = 0;
     int upstream_signal_lost = 0;
+    struct timecode_context_s tc;
+
 #if DEV_ABR
     int encode_alternate_copy = 0;
 #endif
@@ -444,6 +448,13 @@ static void *x264_start_encoder( void *ptr )
     struct vc8x0_display_context osdctx;
     vc8x0_display_init(&osdctx);
 #endif
+
+    if (enc_params->avc_param.i_fps_num > 1000) {
+        obe_timecode_clear(&tc, enc_params->avc_param.i_fps_num / 1000);
+    } else {
+        obe_timecode_clear(&tc, enc_params->avc_param.i_fps_num);
+    }
+
     /* TODO: check for width, height changes */
 
     /* Lock the mutex until we verify and fetch new parameters */
@@ -614,6 +625,7 @@ printf("param.rc.i_vbv_buffer_size = %d\n", param.rc.i_vbv_buffer_size);
     }
 
     printf(MESSAGE_PREFIX "lookahead = %d\n", enc_params->avc_param.rc.i_lookahead);
+    printf(MESSAGE_PREFIX "open_gop = %d\n", enc_params->avc_param.b_open_gop);
     x264_encoder_parameters( s, &enc_params->avc_param );
 
     encoder->encoder_params = malloc( sizeof(enc_params->avc_param) );
@@ -959,6 +971,46 @@ printf("param.rc.i_vbv_buffer_size = %d\n", param.rc.i_vbv_buffer_size);
                 x264_picture_free(up);
 	}
 #else
+
+        if (h->enable_timecode && raw_frame->timecode.present) {
+            /* Timecode handling */
+            obe_timecode_update(&tc,
+                raw_frame->timecode.hours,
+                raw_frame->timecode.mins,
+                raw_frame->timecode.seconds,
+                raw_frame->timecode.frames);
+
+            if (obe_timecode_get_corrected_frame(&tc) >= 0) {
+                pic.timecode[0].b_discontinuity = obe_timecode_get_discontinuity(&tc);
+                pic.timecode[0].b_valid = 1;
+                pic.timecode[0].i_hours = raw_frame->timecode.hours;
+                pic.timecode[0].i_minutes = raw_frame->timecode.mins;
+                pic.timecode[0].i_seconds = raw_frame->timecode.seconds;
+                pic.timecode[0].i_frame = obe_timecode_get_corrected_frame(&tc);
+                pic.timecode[0].b_drop = raw_frame->timecode.drop_frame;
+                /* ISO14496-10 Table D-3: '6' dropping of unspecified
+                * numbers of unspecified n_frames count values.
+                */
+                pic.timecode[0].i_counting_type = 6;
+                pic.timecode[0].i_type = X264_TIMECODE_FULL;
+            } else {
+                /* The timecode is > 30fps and we need to wait for the
+                 * incoming frame counter to reach 0 so we can syncronize
+                 * our corrected frame count with a known good frame count.
+                 * In practise this means we don't apply a timecode to the
+                 * first N frames, until a second has wrapped.
+                 */
+                pic.timecode[0].b_valid = 0;                
+            }
+            /* End - Timecode handling */
+        } else {
+            pic.timecode[0].b_valid = 0;
+        }
+        if (pic.timecode[0].b_valid) {
+            //printf("sending frame#%2d to encoder\n", pic.timecode[0].i_frame);
+        }
+        /* End - Timecode handling */
+
 struct timeval begin, end, diff;
 gettimeofday(&begin, NULL);
         frame_size = x264_encoder_encode( s, &nal, &i_nal, &pic, &pic_out );
@@ -1163,6 +1215,7 @@ if (fh)
                     switch (e->item_type) {
                     case AVMETADATA_VANC_SCTE104:
                         helper_vancprocessor_scte104(enc_params, e, coded_frame);
+                        g_scte35_trigger_count++;
                         break;
                     default:
                         printf("%s() warning, no handling of item type 0x%x\n", __func__, e->item_type);

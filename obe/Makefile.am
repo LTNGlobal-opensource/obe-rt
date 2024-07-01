@@ -2,7 +2,7 @@ AUTOMAKE_OPTIONS = foreign
 GIT_VERSION := $(shell git describe --abbrev=8 --dirty --always --tags)
 
 VERSION_MAJOR = 4
-VERSION_MINOR = 2
+VERSION_MINOR = 3
 VERSION_PATCH = 1
 
 BLACKMAGIC_SDK_PATH = $(top_srcdir)/include/decklink-sdk
@@ -26,6 +26,8 @@ LDFLAGS += -lpthread -lz -lx264 -lyuv
 LDFLAGS += -lavformat -lavcodec -ldl -lfdk-aac -lbz2 -lz -lswscale -lavutil -lm -lswresample
 LDFLAGS += -lklscte35 -lklvanc -llzma
 LDFLAGS += -ltwolame -lmpegts -lstdc++ -ldl -lzvbi /usr/lib64/libreadline.a -lcurses -lltntstools
+LDFLAGS += -lcurl
+LDFLAGS += -lltnsdi
 
 if LIBX265
 LDFLAGS += -lx265
@@ -61,6 +63,7 @@ obecli_SOURCES  = obe.c
 obecli_SOURCES += obecli.c
 obecli_SOURCES += stream_formats.c
 obecli_SOURCES += statistics.c
+obecli_SOURCES += process.c
 obecli_SOURCES += ../mux/smoothing.c
 obecli_SOURCES += ../mux/ts/ts.c
 obecli_SOURCES += ../output/ip/ip.c
@@ -134,6 +137,9 @@ obecli_SOURCES += ../common/x86/x86util.asm
 obecli_SOURCES += ../common/common_lavc.c
 obecli_SOURCES += ../common/queue.c
 obecli_SOURCES += ../common/metadata.c
+obecli_SOURCES += ../common/timecode.c
+obecli_SOURCES += ../common/timecode.h
+obecli_SOURCES += ../common/http.c
 obecli_SOURCES += ../common/vancprocessor.c
 obecli_SOURCES += ../common/scte104filtering.c
 obecli_SOURCES += ltn_ws.c

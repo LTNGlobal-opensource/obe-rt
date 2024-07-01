@@ -30,6 +30,12 @@
 #include <ctype.h>
 #include <include/DeckLinkAPIVersion.h>
 #include <common/scte104filtering.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <sys/resource.h>
+#include <sys/statvfs.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <signal.h>
 #define _GNU_SOURCE
@@ -46,6 +52,8 @@
 #include "obecli-shared.h"
 #include "common/common.h"
 #include "ltn_ws.h"
+#include "common/http.h"
+#include "process.h"
 
 #if HAVE_DTAPI_H
 extern char *dektec_sdk_version;
@@ -70,6 +78,20 @@ void *g_ltn_ws_handle = NULL;
 #endif
 
 extern int g_decklink_op47_teletext_reverse;
+
+char g_device_input_type[64]; /* decklink, ndi, etc */
+char g_device_input_port[128] = { 0 }; /* A, ndi://x.y.z, 0 */
+
+char g_signal_format_detected[64] = { 0 };
+struct timespec g_signal_detected_ts;
+struct timespec g_signal_los_ts;
+struct timespec g_smpte2038_detected_ts;
+struct timespec g_cea708_detected_ts;
+struct timespec g_scte104_detected_ts = { 0, 0 };
+uint64_t g_scte35_trigger_count = 0;
+
+double g_audio_channel_level_dbfs[32];
+int g_audio_channel_type[32]; /* 0 = undefined, 1 = pcm, 2 = bitstream */
 
 int  runtime_statistics_start(void **ctx, obecli_ctx_t *cli);
 void runtime_statistics_stop(void *ctx);
@@ -145,6 +167,7 @@ static const char * input_opts[]  = { "location", "card-idx", "video-format", "v
                                       "name", /* 13 */
                                       "hdr", /* 14 */
                                       "smpte2031", /* 15 */
+                                      "timecode", /* 16 */
                                       NULL };
 static const char * add_opts[] =    { "type" };
 /* TODO: split the stream options into general options, video options, ts options */
@@ -645,6 +668,7 @@ static int set_input( char *command, obecli_command_t *child )
         char *name = obe_get_option(input_opts[13], opts);
         char *hdr = obe_get_option( input_opts[14], opts );
         char *smpte2031 = obe_get_option( input_opts[15], opts );
+        char *timecode = obe_get_option( input_opts[16], opts );
 
         FAIL_IF_ERROR( video_format && ( check_enum_value( video_format, input_video_formats ) < 0 ),
                        "Invalid video format\n" );
@@ -678,6 +702,7 @@ static int set_input( char *command, obecli_command_t *child )
         cli.input.enable_hdr = obe_otoi( hdr, cli.input.enable_hdr );
         cli.input.enable_scte35 = obe_otoi( scte35, cli.input.enable_scte35 );
         cli.h->enable_scte35 = cli.input.enable_scte35; /* Put this on the core cache, no just in the input content. */
+        cli.h->enable_timecode = obe_otoi( timecode, cli.h->enable_timecode ); /* Put this on the core cache, no just in the input content. */
 
         cli.input.enable_vanc_cache = obe_otoi( vanc_cache, cli.input.enable_vanc_cache );
         cli.input.enable_los_exit_ms = obe_otoi( los_exit_ms, cli.input.enable_los_exit_ms );
@@ -695,6 +720,7 @@ static int set_input( char *command, obecli_command_t *child )
     {
         FAIL_IF_ERROR( ( check_enum_value( command, input_types ) < 0 ), "Invalid input type\n" );
         parse_enum_value( command, input_types, &cli.input.input_type );
+        strcpy(&g_device_input_type[0], command);
     }
 
     return 0;
@@ -1440,6 +1466,9 @@ extern int g_decklink_render_walltime;
 extern int g_decklink_inject_scte104_preroll6000;
 extern int g_decklink_inject_scte104_fragmented;
 extern int g_decklink_udp_vanc_receiver_port;
+extern int g_timecode_debug;
+int g_json_stats_print_console = 0;
+extern int g_timecode_trigger_discontinuity;
 
 /* Case 1 */
 extern int g_decklink_fake_lost_payload;
@@ -1537,10 +1566,12 @@ extern int g_decklink_injected_frame_count;
 /* Core */
 extern int g_core_runtime_statistics_to_file;
 extern int g_core_runtime_terminate_after_seconds;
+extern int g_core_runtime_statistics_to_port;
 
 /* Filters */
 extern int g_filter_audio_effect_pcm;
 extern int g_filter_video_fullsize_jpg;
+extern char g_filter_video_fullsize_jpg_filename[256];
 
 /* Ancillary data */
 extern int g_ancillary_disable_captions;
@@ -1686,6 +1717,10 @@ extern time_t g_decklink_missing_video_last_time;
     printf("udp_output.trim_ms                 = %" PRIi64 "\n", g_mux_smoother_trim_ms);
     printf("core.runtime_statistics_to_file    = %d\n",
         g_core_runtime_statistics_to_file);
+    printf("core.runtime_statistics_to_port    = %d\n",
+        g_core_runtime_statistics_to_port);
+    printf("core.runtime_statistics_print     = %d\n",
+        g_json_stats_print_console);
     printf("core.runtime_terminate_after_seconds = %d\n",
         g_core_runtime_terminate_after_seconds);
     printf("filter.audio.pcm.adjustment        = 0x%08x (bitmask)",
@@ -1711,8 +1746,12 @@ extern time_t g_decklink_missing_video_last_time;
     if (g_filter_audio_effect_pcm & (1 << 9))
         printf(" CLIP_LEFT");
     printf("\n");
-    printf("filter.video.create_fullsize_jpg   = %d\n",
-        g_filter_video_fullsize_jpg);
+    if (g_filter_video_fullsize_jpg) {
+        printf("filter.video.create_fullsize_jpg   = %s\n",
+            g_filter_video_fullsize_jpg_filename);
+    } else {
+        printf("filter.video.create_fullsize_jpg   = DISABLED\n");
+    }
 
     /* SCTE 104 / 35 filtering */
     printf("scte104.filters.clear              = 0\n");
@@ -1728,6 +1767,8 @@ extern time_t g_decklink_missing_video_last_time;
     }
 
     printf("vanc_receiver.udp_port             = %d\n", g_decklink_udp_vanc_receiver_port);
+    printf("timecode.debug                     = %d\n", g_timecode_debug);
+    printf("timecode.force_discontinuity       = %d\n", g_timecode_trigger_discontinuity);
 }
 
 extern char *strcasestr(const char *haystack, const char *needle);
@@ -1735,8 +1776,8 @@ extern char *strcasestr(const char *haystack, const char *needle);
 static int set_variable(char *command, obecli_command_t *child)
 {
     int64_t val = 0;
-    char var[128];
-    char vars[128];
+    char var[256];
+    char vars[256];
 
     if (!strlen(command)) {
         /* Missing arg, display the current value. */
@@ -1747,6 +1788,11 @@ static int set_variable(char *command, obecli_command_t *child)
     if (sscanf(command, "%s = %" PRIi64, &var[0], &val) != 2) {
         if (strncasecmp(var, "scte104.filter.add", 18) == 0) {
             strcpy(&vars[0], &command[20]);
+            /* handle this below */
+        }
+        else
+        if (strncasecmp(var, "filter.video.create_fullsize_jpg", 32) == 0) {
+            strcpy(&vars[0], &command[35]);
             /* handle this below */
         } else {
             printf("illegal variable name.\n");
@@ -1909,6 +1955,12 @@ static int set_variable(char *command, obecli_command_t *child)
     if (strcasecmp(var, "core.runtime_statistics_to_file") == 0) {
         g_core_runtime_statistics_to_file = val;
     } else
+    if (strcasecmp(var, "core.runtime_statistics_to_port") == 0) {
+        g_core_runtime_statistics_to_port = val;
+    } else
+    if (strcasecmp(var, "core.runtime_statistics_print") == 0) {
+        g_json_stats_print_console = val;
+    } else
     if (strcasecmp(var, "core.runtime_terminate_after_seconds") == 0) {
         g_core_runtime_terminate_after_seconds = val;
     } else
@@ -1925,10 +1977,17 @@ static int set_variable(char *command, obecli_command_t *child)
         g_filter_audio_effect_pcm = val;
     } else
     if (strcasecmp(var, "filter.video.create_fullsize_jpg") == 0) {
-        g_filter_video_fullsize_jpg = val;
+        g_filter_video_fullsize_jpg = 1;
+        strncpy(&g_filter_video_fullsize_jpg_filename[0], vars, 256);
     } else
     if (strcasecmp(var, "ancillary.disable_captions") == 0) {
         g_ancillary_disable_captions = val;
+    } else
+    if (strcasecmp(var, "timecode.debug") == 0) {
+        g_timecode_debug = val;
+    } else
+    if (strcasecmp(var, "timecode.force_discontinuity") == 0) {
+        g_timecode_trigger_discontinuity = val;
     } else
     if (strcasecmp(var, "scte104.filters.clear") == 0) {
         scte104filter_init(&g_scte104_filtering_context);
@@ -2558,11 +2617,14 @@ static int start_encode( char *command, obecli_command_t *child )
     g_running = 1;
     printf( "Encoding started\n" );
 
-    if (g_core_runtime_statistics_to_file)
+    if (g_core_runtime_statistics_to_file || g_core_runtime_statistics_to_port)
         runtime_statistics_start(&cli.h->runtime_statistics, &cli);
 
     if (g_core_runtime_terminate_after_seconds)
         terminate_after_start(&cli.h->terminate_after, &cli, g_core_runtime_terminate_after_seconds);
+
+//    if (g_core_runtime_statistics_to_port)
+//        runtime_statistics_json_start(&cli.h->runtime_statistics_port, &cli);
 
 #if LTN_WS_ENABLE
     ltn_ws_alloc(&g_ltn_ws_handle, &cli, 8443);
@@ -3053,11 +3115,35 @@ static void *runtime_statistics_thread(void *p)
 
 	ltnpthread_setname_np(ctx->threadId, "obe-rt-stats");
 
+    int tx_skt = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (tx_skt < 0) {
+
+    }
+
+    struct sockaddr_in tx_sa;
+    tx_sa.sin_family = AF_INET;
+    tx_sa.sin_addr.s_addr = inet_addr("127.0.0.1");
+    tx_sa.sin_port = htons(g_core_runtime_statistics_to_port);
+
+    if (strcmp(g_device_input_type, "decklink") == 0) {
+        switch (cli.input.card_idx) {
+        case 0: strcpy(g_device_input_port, "A"); break;
+        case 1: strcpy(g_device_input_port, "C"); break;
+        case 2: strcpy(g_device_input_port, "B"); break;
+        case 3: strcpy(g_device_input_port, "C"); break;
+        default: strcpy(g_device_input_port, "?"); break;
+        }
+    }
+
 	ctx->running = 1;
 	char ts[64];
 	char line[256] = { 0 };
 	while (!ctx->terminate) {
+        double t1, t2, total_cpu_used_pct;
+        obe_process_calculate_cpu_usage(getpid(), &t1);
 		sleep(1);
+        obe_process_calculate_cpu_usage(getpid(), &t2);
+        total_cpu_used_pct = t2 - t1;
 		obe_getTimestamp(ts, NULL);
 		line[0] = 0;
 
@@ -3109,6 +3195,7 @@ static void *runtime_statistics_thread(void *p)
 			}
 		}
 
+        int core_temp = -1;
 		if (ctx->thermal_bm) {
 			int t = 0;
 			for (int i = 0; i < ctx->therm_max; i++) {
@@ -3127,6 +3214,9 @@ static void *runtime_statistics_thread(void *p)
 				}
 
 				fread(val, 1, sizeof(val), fh);
+                if (core_temp == -1)
+                    core_temp = atoi(val) / 1000;
+
 				fclose(fh);
 				sprintf(APPEND(line),",cpu%d_temp=%d", t++, atoi(val) / 1000);
 			}
@@ -3144,17 +3234,265 @@ static void *runtime_statistics_thread(void *p)
 		if (g_core_runtime_statistics_to_file > 1)
 			printf("%s", msg);
 
-		char statsfile[256];
-		sprintf(statsfile, "/tmp/%d-obe-runtime-statistics.log", getpid());
-		FILE *fh = fopen(statsfile, "a+");
-		if (fh) {
-			fwrite(msg, 1, strlen(msg), fh);
-			fclose(fh);
-		}
+        if (g_core_runtime_statistics_to_file) {
+            char statsfile[256];
+            sprintf(statsfile, "/tmp/%d-obe-runtime-statistics.log", getpid());
+            FILE *fh = fopen(statsfile, "a+");
+            if (fh) {
+                fwrite(msg, 1, strlen(msg), fh);
+                fclose(fh);
+            }
+        }
+
+        if (g_core_runtime_statistics_to_port) {
+#define STR_APPEND(svar, fmt, ...) sprintf(svar + strlen(svar), fmt, ##__VA_ARGS__);
+            char *p = calloc(1, 4096);
+
+            while (p) {
+
+                STR_APPEND(p, "%s", "{\n");
+
+                STR_APPEND(p, " \"uuid\": \"%s\",\n", "ltnt-nyc-stevenlab-prod1-e1");
+
+                char ts[64];
+                getISO8601(NULL, &ts[0]);
+                STR_APPEND(p, " \"now\": \"%s\",\n", ts);
+
+                struct timespec x;
+                x.tv_sec = obe_getProcessStartTime();
+                x.tv_nsec = 0;
+                getISO8601(&x, &ts[0]);
+                STR_APPEND(p, " \"startup\": \"%s\",\n", ts);
+
+                char runtime[64];
+                obe_getProcessRuntimeAscii(&runtime[0], sizeof(runtime));
+                STR_APPEND(p, " \"runtime\": \"%s\",\n", runtime);
+
+
+                STR_APPEND(p, "%s", " \"platform\": {\n"); /* start of platfrom */
+
+                char vers[64];
+                {
+                    FILE *fh = fopen("/home/ltn/ltn_encoder/VERSION", "rb");
+                    if (fh) {
+                        if (fread(&vers[0], 1, sizeof(vers), fh) > 0) {
+                            vers[ strlen(vers) - 1] = 0;
+                        }
+                        fclose(fh);
+                    } else {
+                        vers[0] = 'N';
+                        vers[1] = 'A';
+                        vers[2] = 0;
+                    }
+                }
+                
+                char cfg_changed[64];
+                struct stat attr;
+                if (stat("/home/ltn/ltn_encoder/ltn_encoder0.cfg", &attr) == 0) {
+                    strftime(cfg_changed, 20, "%Y-%m-%d %H:%M:%S", localtime(&(attr.st_ctime)));
+                } else {
+                        cfg_changed[0] = 'N';
+                        cfg_changed[1] = 'A';
+                        cfg_changed[2] = 0;
+                }
+
+                char hname[128];
+                gethostname(&hname[0], sizeof(hname));
+
+                STR_APPEND(p, "  \"host\": \"%s\",\n", hname);
+                STR_APPEND(p, "  \"pkg_version\": \"%s\",\n", vers);
+                STR_APPEND(p, "  \"model\": \"LTN%d\",\n", obe_core_get_platform_model());
+                STR_APPEND(p, "  \"pid\": %d,\n", getpid());
+                STR_APPEND(p, "  \"la1\": %5.02f,\n", la[0]);
+                STR_APPEND(p, "  \"la5\": %5.02f,\n", la[1]);
+                STR_APPEND(p, "  \"la15\": %5.02f,\n", la[2]);
+                STR_APPEND(p, "  \"temperature\": %d,\n", core_temp);
+
+                STR_APPEND(p, "  \"cpu_pct\": %.0f,\n", total_cpu_used_pct);
+
+                struct rusage r_usage;
+                getrusage(RUSAGE_SELF, &r_usage);
+                STR_APPEND(p, "  \"memused\": %ld,\n", r_usage.ru_maxrss);
+
+                struct statvfs st[2];
+                statvfs("/", &st[0]);
+                statvfs("/storage", &st[1]);
+                unsigned long root_free_space = st[0].f_bfree * st[0].f_frsize;
+                unsigned long storage_free_space = st[1].f_bfree * st[1].f_frsize;
+                STR_APPEND(p, "  \"hdfree_root\": %ld,\n", root_free_space);
+                STR_APPEND(p, "  \"hdfree_storage\": %ld,\n", storage_free_space);
+
+                STR_APPEND(p, "  \"last_conf_file_change\": \"%s\"\n", cfg_changed);
+
+                STR_APPEND(p, "%s", " },\n"); /* end of platform */
+
+                STR_APPEND(p, "%s", " \"signal\": {\n");
+                //STR_APPEND(p, "  \"thumbnail\": \"%s\",\n", g_filter_video_fullsize_jpg_filename);
+                STR_APPEND(p, "  \"thumbnail\": \"%s\",\n", "/analyzer/thumbnail.jpg");
+                STR_APPEND(p, "  \"type\": \"%s\",\n", g_device_input_type);
+                STR_APPEND(p, "  \"inputport\": \"%s\",\n", g_device_input_port);
+                STR_APPEND(p, "  \"present\": %d,\n", 1);
+
+                if (strlen(g_signal_format_detected) > 0) {
+                    STR_APPEND(p, "  \"format\": \"%s\",\n", g_signal_format_detected);
+                } else {
+                    STR_APPEND(p, "  \"format\": \"%s\",\n", "NA");
+                }
+
+                getISO8601(&g_signal_detected_ts, &ts[0]);
+                STR_APPEND(p, "  \"acq_time\": \"%s\",\n", ts);
+                getISO8601(&g_signal_los_ts, &ts[0]);
+                STR_APPEND(p, "  \"los_time\": \"%s\",\n", ts);
+
+                if (g_scte104_detected_ts.tv_sec) {
+                    getISO8601(&g_scte104_detected_ts, &ts[0]);
+                    STR_APPEND(p, "  \"scte104_time\": \"%s\",\n", ts);
+                } else {
+                    STR_APPEND(p, "  \"scte104_time\": \"%s\",\n", "NA");
+                }
+
+                if (g_smpte2038_detected_ts.tv_sec) {
+                    getISO8601(&g_smpte2038_detected_ts, &ts[0]);
+                    STR_APPEND(p, "  \"smpte2038_time\": \"%s\",\n", ts);
+                } else {
+                    STR_APPEND(p, "  \"smpte2038_time\": \"%s\",\n", "NA");
+                }
+
+                if (g_cea708_detected_ts.tv_sec) {
+                    getISO8601(&g_cea708_detected_ts, &ts[0]);
+                    STR_APPEND(p, "  \"cea708_time\": \"%s\"\n", ts);
+                } else {
+                    STR_APPEND(p, "  \"cea708_time\": \"%s\"\n", "NA");
+                }
+                STR_APPEND(p, "%s", " },\n"); /* end of signal */
+
+                /* SDI audio levels */
+                for (int i = 0; i < 16; i++) {
+                    STR_APPEND(p, " \"a%d_level\": %6.1f,\n", i + 1, g_audio_channel_level_dbfs[i]);
+                    STR_APPEND(p, " \"a%d_type\": \"%s\",\n", i + 1,
+                        g_audio_channel_type[i] == 1 ? "pcm" :
+                        g_audio_channel_type[i] == 2 ? "bitstream" : "NA");
+                }
+
+                STR_APPEND(p, "%s", " \"output\": {\n");
+                STR_APPEND(p, "  \"br\": %d,\n", g_udp_output_bps);
+                STR_APPEND(p, "  \"scte35_count\": %ld,\n", g_scte35_trigger_count);
+                STR_APPEND(p, "  \"url\": \"%s\",\n", cli.output.outputs[0].target);
+                STR_APPEND(p, "  \"pids\": [\n");
+                STR_APPEND(p, "    {\n");
+                STR_APPEND(p, "    \"nr\": \"0x%04x (%4d)\",\n", 32, 32);
+                STR_APPEND(p, "    \"cc\": %d,\n", 1);
+                STR_APPEND(p, "    \"type\": \"video\"\n");
+                STR_APPEND(p, "    },\n");
+                STR_APPEND(p, "    {\n");
+                STR_APPEND(p, "    \"nr\": \"0x%04x\",\n", 1);
+                STR_APPEND(p, "    \"cc\": %d,\n", 2);
+                STR_APPEND(p, "    \"type\": \"video\"\n");
+                STR_APPEND(p, "    }\n");
+                STR_APPEND(p, "%s", "  ]\n");
+                
+                STR_APPEND(p, "%s", " }\n"); /* end of output */
+
+                STR_APPEND(p, "%s", "}\n");
+                if (g_json_stats_print_console) {
+                    printf("json = [%s]\n", p);
+                }
+
+                if (sendto(tx_skt, p, strlen(p), 0, (struct sockaddr *)&tx_sa, sizeof(tx_sa)) < 0) {
+                    fprintf(stderr, "Error transmitting runtime stats to UDP\n");
+                }
+
+                if (obe_http_post(p) < 0) {
+                    fprintf(stderr, MODULE_PREFIX "Failed to transmit stats\n");
+                }
+
+                free(p);
+                p = NULL;
+            }
+            /* Prometheus sup[port? */
+            /* broadcast a udp message with json
+             *
+             * {
+             *      "uuid": "string",
+             *      "now": iso8601,
+             *      "startup": iso8601,
+             *      "platform": {
+             *         "host": string,
+             *         "pkg_version": string,
+             *         "platform": ltn573,
+             *         "pid": processid,
+             *         "cpu_pct": number,
+             *         "la1": number,
+             *         "la5": number,
+             *         "la15": number,
+             *         "temperature": number,
+             *         "last_conf_file_change": iso8601,
+             *      },
+             *      "signal": {
+             *          "type": decklink | 3311 | ndi
+             *          "input": PortA
+             *          "present": 0..1,
+             *          "format": "1280x720p59.94",
+             *          "w": 1280,
+             *          "h": 720,
+             *          "scan": i..p,
+             *          "f": 59.94,
+             *          "acq_time": iso8601,
+             *          "los_time": iso8601,
+             *          "scte104": last detected iso8601,
+             *          "ce708": last detected iso8601,
+             *      },
+             *      "thumbnail": "/tmp/blah.jpg",
+             *      "a1": {
+             *         "level_dbfs": number,
+             *      },
+             *      "output": {
+             *          "pids": {
+             *              "0x0001 (1)": "PAT",
+             *              "0x0020 (32)": "PMT",
+             *              "0x0021 (33)": "PCR",
+             *              "0x0021 (33)": "Video - H.264",
+             *              "0x0022 (34)": "Audio - MP1/L2 2.0",
+             *              "0x0023 (35)": "Audio - AC3 2.0",
+             *          }
+             *          "v1": {
+             *              "codec": "H.264",
+             *              "br": "18000000",
+             *              "format": "1280x720p59.94",
+             *              "w": 1280,
+             *              "h": 720,
+             *              "scan": i..p,
+             *              "f": 59.94,
+             *              "latency": string,
+             *          },
+             *          "a1": {
+             *              "codec": "MP1/L2",
+             *              "br": "256000",
+             *          },
+             *          "a2..8": {
+             *          },
+             *          "anc": {
+             *            "scte35": last transmit iso8601,
+             *            "scte35_count": number,
+             *            "ce708": last transmit iso8601,
+             *            "smpte2038": last transmit iso8601,
+             *            "smpte2038_count": number,
+             *          },
+             *          "url": udp://127.0.0.1:4001,
+             *          "bps": g_udp_output_bps,
+             *      },
+             * }
+             * 
+             * 
+             */
+        }
+
 	}
 	ctx->terminated = 1;
 	ctx->running = 0;
 	pthread_exit(0);
+
+    close(tx_skt);
 
 	return NULL;
 }

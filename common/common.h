@@ -316,6 +316,7 @@ typedef struct
 
 typedef struct
 {
+    int present;
     int hours;
     int mins;
     int seconds;
@@ -648,6 +649,7 @@ struct obe_t
      * correctly enabled or disabled. The Mux and the Decklink input.
      */
     int enable_scte35;
+    int enable_timecode;
 };
 
 typedef struct

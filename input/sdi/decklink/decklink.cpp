@@ -61,6 +61,7 @@ extern "C"
 #include <libavutil/pixdesc.h>
 #include <libklvanc/vanc.h>
 #include <libklscte35/scte35.h>
+#include <libltnsdi/ltnsdi.h>
 #include "input/sdi/v210.h"
 #include "common/bitstream.h"
 }
@@ -85,6 +86,13 @@ static int64_t clock_offset = 0;
 static uint64_t framesQueued = 0;
 
 #define DECKLINK_VANC_LINES 100
+
+extern char g_signal_format_detected[64];
+extern struct timespec g_signal_detected_ts;
+extern struct timespec g_signal_los_ts;
+extern struct timespec g_cea708_detected_ts;
+extern struct timespec g_scte104_detected_ts;
+extern struct timespec g_smpte2038_detected_ts;
 
 struct obe_to_decklink
 {
@@ -248,6 +256,8 @@ typedef struct
      * managed downstream (in each video codec).
      */
     struct avmetadata_s metadataVANC;
+
+    struct ltnsdi_context_s *sdi_audio_analyzer_ctx;
 } decklink_ctx_t;
 
 typedef struct
@@ -419,6 +429,9 @@ static void convert_colorspace_and_parse_vanc(decklink_ctx_t *decklink_ctx, stru
     if (decklink_ctx->smpte2038_ctx) {
         if (klvanc_smpte2038_packetizer_end(decklink_ctx->smpte2038_ctx,
                                      decklink_ctx->stream_time / 300 + (10 * 90000)) == 0) {
+
+            clock_gettime(CLOCK_REALTIME, &g_smpte2038_detected_ts);
+
             if (transmit_pes_to_muxer(decklink_ctx, decklink_ctx->smpte2038_ctx->buf,
                                       decklink_ctx->smpte2038_ctx->bufused, SMPTE2038) < 0) {
                 fprintf(stderr, "%s() failed to xmit PES to muxer\n", __func__);
@@ -598,6 +611,10 @@ public:
                 return S_OK;
             }
             printf("%s() %x [ %s ]\n", __func__, mode_id, fmt->ascii_name);
+            sprintf(g_signal_format_detected, fmt->ascii_name);
+            clock_gettime(CLOCK_REALTIME, &g_signal_detected_ts);
+            clock_gettime(CLOCK_REALTIME, &g_signal_los_ts);
+
             if (OPTION_ENABLED_(allow_1080p60) == 0) {
                 switch (fmt->obe_name) {
                 case INPUT_VIDEO_FORMAT_1080P_50:
@@ -762,6 +779,17 @@ static int processAudio(decklink_ctx_t *decklink_ctx, decklink_opts_t *decklink_
     void *frame_bytes;
     audioframe->GetBytes(&frame_bytes);
     int hasSentAudioBuffer = 0;
+
+    uint32_t strideBytes = decklink_opts_->num_channels * (32 / 8);
+    if (ltnsdi_audio_channels_write(decklink_ctx->sdi_audio_analyzer_ctx,
+        (uint8_t *)frame_bytes,
+        audioframe->GetSampleFrameCount(),
+        32,
+        decklink_opts_->num_channels,
+        strideBytes) < 0)
+    {
+        fprintf(stderr, "Failed to feed audio analyzer\n");
+    }
 
         for (int i = 0; i < MAX_AUDIO_PAIRS; i++) {
             struct audio_pair_s *pair = &decklink_ctx->audio_pairs[i];
@@ -1031,6 +1059,7 @@ int           g_decklink_inject_scte104_preroll6000 = 0;
 int           g_decklink_inject_scte104_fragmented = 0;
 
 int           g_decklink_op47_teletext_reverse = 1;
+int           g_timecode_debug = 0;
 
 struct udp_vanc_receiver_s {
     int active;
@@ -1054,6 +1083,10 @@ static void cache_video_frame(obe_raw_frame_t *frame)
 
 HRESULT DeckLinkCaptureDelegate::noVideoInputFrameArrived(IDeckLinkVideoInputFrame *videoframe, IDeckLinkAudioInputPacket *audioframe)
 {
+    clock_gettime(CLOCK_REALTIME, &g_signal_los_ts);
+//struct timespec g_ce708_detected_ts;
+//struct timespec g_smpe2038_detected_ts;
+
 	if (!cached)
 		return S_OK;
 
@@ -1143,6 +1176,25 @@ HRESULT DeckLinkCaptureDelegate::VideoInputFrameArrived( IDeckLinkVideoInputFram
 #endif
 	}
 	//printf("%d.%08d rem vf:%d af:%d\n", diff.tv_sec, diff.tv_usec, val[0], val[1]);
+
+extern double g_audio_channel_level_dbfs[32];
+extern int g_audio_channel_type[32]; /* 0 = undefined, 1 = pcm, 2 = bitstream */
+
+    /* Update the stats structs so the UI can be up to date */
+    struct ltnsdi_status_s *astatus;
+    if (ltnsdi_status_alloc(decklink_ctx->sdi_audio_analyzer_ctx, &astatus) == 0) {
+        for (int i = 0; i < decklink_opts_->num_channels; i++) {
+
+            if (astatus->channels[i].type == 1) {
+                g_audio_channel_type[i] = 1; /* PCM */
+                g_audio_channel_level_dbfs[i] = astatus->channels[i].pcm_dbFS;
+            } else
+            if (astatus->channels[i].type == 2) {
+                g_audio_channel_type[i] = 2; /* bitstream */
+                g_audio_channel_level_dbfs[i] = 0.0;
+            }
+        }
+    }
 
 	return hr;
 }
@@ -1870,6 +1922,8 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             if( decode_vbi( h, &decklink_ctx->non_display_parser, vbi_buf, raw_frame ) < 0 )
                 goto fail;
 
+            clock_gettime(CLOCK_REALTIME, &g_cea708_detected_ts);
+
             av_free( vbi_buf );
         }
 
@@ -1981,6 +2035,59 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             if (g_decklink_inject_frame_enable)
                 cache_video_frame(raw_frame);
 
+            /* Timecode handling */
+            IDeckLinkTimecode *timecode;
+            BMDTimecodeFormat tcf = bmdTimecodeRP188Any;
+#if 0
+            BMDTimecodeFormat tcf = bmdTimecodeRP188VITC1;
+            BMDTimecodeFormat tcf = bmdTimecodeRP188VITC2;
+            BMDTimecodeFormat tcf = bmdTimecodeRP188LTC;
+            BMDTimecodeFormat tcf = bmdTimecodeRP188Any;
+            BMDTimecodeFormat tcf = bmdTimecodeVITC;
+            BMDTimecodeFormat tcf = bmdTimecodeVITCField2;
+            BMDTimecodeFormat tcf = bmdTimecodeSerial;
+#endif
+
+            raw_frame->timecode.present = 0;
+            raw_frame->timecode.hours = 0;
+            raw_frame->timecode.mins = 0;
+            raw_frame->timecode.seconds = 0;
+            raw_frame->timecode.frames = 0;
+            raw_frame->timecode.drop_frame = 0;
+
+            if (videoframe->GetTimecode(tcf, &timecode) == S_OK) {
+                raw_frame->timecode.present = 1;
+                uint8_t tc_hours, tc_minutes, tc_seconds, tc_frames;
+                if (timecode->GetComponents(&tc_hours, &tc_minutes, &tc_seconds, &tc_frames) == S_OK) {
+
+                    raw_frame->timecode.hours   = tc_hours;
+                    raw_frame->timecode.mins    = tc_minutes;
+                    raw_frame->timecode.seconds = tc_seconds;
+                    raw_frame->timecode.frames  = tc_frames;
+
+                    /* Comments: https://www.reddit.com/r/VIDEOENGINEERING/comments/1b946x0/timecode_for_5994fps/
+                     * timecode when frame counts exceed 30fps, Mark bit with repeated time.
+                     */
+                    if (timecode->GetFlags() & bmdTimecodeIsDropFrame) {
+                        raw_frame->timecode.drop_frame = 1;
+                    } else {
+                        raw_frame->timecode.drop_frame = 0;
+                    }
+
+                    if (g_timecode_debug) {
+                        printf("sdi timecode: %02d:%02d:%02d%s%02d\n",
+                            raw_frame->timecode.hours, raw_frame->timecode.mins, raw_frame->timecode.seconds,
+                            raw_frame->timecode.drop_frame ? ";" : ":",
+                            raw_frame->timecode.frames);
+                    }
+                }
+                timecode->Release();
+
+            } else {
+                //fprintf(stderr, PREFIX "No timecode available\n");
+            }
+            /* End - Timecode handling */
+
             /* Ensure we put any associated video vanc / metadata into this raw frame. */
             avmetadata_clone(&raw_frame->metadata, &decklink_ctx->metadataVANC);
 
@@ -2084,6 +2191,10 @@ static void close_card( decklink_opts_t *decklink_opts )
         decklink_ctx->vanchdl = 0;
     }
 
+    if (decklink_ctx->sdi_audio_analyzer_ctx) {
+        ltnsdi_context_free(decklink_ctx->sdi_audio_analyzer_ctx);
+        decklink_ctx->sdi_audio_analyzer_ctx = 0;
+    }
     if (decklink_ctx->smpte2038_ctx) {
         klvanc_smpte2038_packetizer_free(&decklink_ctx->smpte2038_ctx);
         decklink_ctx->smpte2038_ctx = 0;
@@ -2229,6 +2340,9 @@ static int cb_SCTE_104(void *callback_context, struct klvanc_context_s *ctx, str
      * set variable scte104.filter1 = pid = 56, AS_index = all, DPI_PID_index = 1
      * set variable scte104.filter2 = pid = 57, AS_index = all, DPI_PID_index = 80
      */
+
+    clock_gettime(CLOCK_REALTIME, &g_scte104_detected_ts);
+//struct timespec g_ce708_detected_ts;
 
 	/* It should be impossible to get here until the user has asked to enable SCTE35 */
 
@@ -2675,6 +2789,10 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
         klsyslog_and_stdout(LOG_INFO, "Enabling option 1080p60");
     }
 
+    if (decklink_ctx->h->enable_timecode) {
+        klsyslog_and_stdout(LOG_INFO, "Enabling option 'Timecode'");
+    }
+
     if (decklink_ctx->h->enable_scte35) {
         klsyslog_and_stdout(LOG_INFO, "Enabling option SCTE35 with %d streams", decklink_ctx->h->enable_scte35);
     } else
@@ -2699,6 +2817,10 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
     ltn_histogram_alloc_video_defaults(&decklink_ctx->callback_2_hdl, "frame section2 time");
     ltn_histogram_alloc_video_defaults(&decklink_ctx->callback_3_hdl, "frame section3 time");
     ltn_histogram_alloc_video_defaults(&decklink_ctx->callback_4_hdl, "frame section4 time");
+
+    if (ltnsdi_context_alloc(&decklink_ctx->sdi_audio_analyzer_ctx) < 0) {
+        klsyslog_and_stdout(LOG_INFO, "Enabling SDI Audio analyzer");
+    }
 
     for (int i = 0; i < MAX_AUDIO_PAIRS; i++) {
         struct audio_pair_s *pair = &decklink_ctx->audio_pairs[i];
