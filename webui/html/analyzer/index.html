@@ -1,0 +1,226 @@
+<html>
+<head>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.slim.min.js"></script>
+ <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
+ <script type="text/javascript" src="index.js"></script>
+ <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+ <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+ <script src="mpegts.js"></script>
+ <style>
+.alert {
+  margin-bottom: 1px;
+  height: 30px;
+  line-height:30px;
+  padding:0px 15px;
+}
+.box {
+  float: left;
+  height: 15px;
+  width: 20px;
+  margin-bottom: 2px;
+  border: 1px solid black;
+  clear: both;
+}
+
+.red {
+  background-color: red;
+}
+
+.green {
+  background-color: MediumAquaMarine;
+}
+
+.table-condensed{
+  font-size: 10px;
+}
+
+.rowsmall {
+  height: 15px;
+}
+ </style>
+</head>
+<body>
+<div class="container">
+  <div class="panel-group">
+    <div class="panel panel-primary">
+      <div class="panel-heading">
+        <div class="row">
+          <div class="col-4"><h2 align="center">LTN Encoder - Operational Statistics</h2></div>
+        </div>
+      </div>
+
+      <div class="panel-body">
+        <div class="row">
+        <table class="table table-striped">
+          <tbody>
+            <tr><td>Encoder</td><td id="uuid">-</td><td>CPU</td><td id="cpupct">-</td><td>Start time</td><td id="starttime">-</td></tr>
+            <tr><td>Platform</td><td id=model>-</td><td>RAM</td><td id="memused">-</td><td>Runtime</td><td id="runtime">-</td></tr>
+            <tr><td>Stream</td><td id=dstname></td><td>Root / Storage free</td><td id="hdfreespace">-</td><td>Process Id</td><td id="processid">-</td></tr>
+            <tr><td>Hostname</td><td id=hostname>hostname</td><td>Thermals</td><td id="temperature">-</td><td>Load Avg</td><td id=loadavg></td></tr>
+            <tr><td>Bitrate</td><td id=bitrate>-</td><td>Last Caption</td><td id="cea708_time"></td><td>Version</td><td id="pkg_version">-</td></tr>
+            <tr><td>SCTE35 Triggers</td><td id="scte35_count">-</td><td>Last Trigger</td><td id="lastscte104">-</td><td>Last 2038</td><td id="lastsmpte2038">-</td></tr>
+            <tr><td>Detected Format</td><td id="signalformat"></td><td>Last LOS</td><td id="los_time"></td><td>ACQ</td><td id="acq_time"></td></tr>
+            <tr><td>Conf Changed</td><td id="cfgtime"></td><td></td><td></td><td></td><td></td></tr>
+          </tbody>
+        </table>
+        </div>
+
+        <div class="row">
+          <div class="col-sm-12">
+            <div class="alert alert-success" role="alert">
+              <p align="right" id="bitrateButton" onclick="toggleDiv('divMYChart', 'bitrateButton');">Hide</p>
+            </div>
+          </div>
+        </div>
+        <div class="row" id="divMYChart">
+          <div class="col-sm-12"><canvas id="myChart" height=64></canvas></div>
+        </div>
+        <div class="row">
+          <div class="col-sm-12">
+            <div class="alert alert-success" role="alert">
+              <p align="right" id="tnButton" onclick="toggleDiv('divMYChart2', 'tnButton');">Hide</p>
+            </div>
+          </div>
+        </div>
+        <div class="row" id="divMYChart2">
+          <div class="col-sm-5"><img id="tnImage" height=256 style="vertical-align: middle;border: 1px solid black;margin: 5px;"><img></div>
+          <div class="row" id="divMYChart3">
+            <div class="col-sm-4">
+              <table class="table table-condensed rowsmall">
+                <thead>
+                  <tr>
+                    <th>Ch</th><th>Audio Level (dbFs)</th><th></th><th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>1:</td><td><div id="a_ch1" class='box green' style="width: 0px;"></div></td><td>9:</td><td><div id="a_ch9" class='box green' style="width: 0px;"></div></td><br>
+                  <tr><td>2:</td><td><div id="a_ch2" class='box green' style="width: 0px;"></div></td><td>10:</td><td><div id="a_ch10" class='box green' style="width: 0px;"></div></td></tr>
+                  <tr><td>3:</td><td><div id="a_ch3" class='box green' style="width: 0px;"></div></td><td>11:</td><td><div id="a_ch11" class='box green' style="width: 0px;"></div></td></tr>
+                  <tr><td>4:</td><td><div id="a_ch4" class='box green' style="width: 0px;"></div></td><td>12:</td><td><div id="a_ch12" class='box green' style="width: 0px;"></div></td></tr>
+                  <tr><td>5:</td><td><div id="a_ch5" class='box green' style="width: 0px;"></div></td><td>13:</td><td><div id="a_ch13" class='box green' style="width: 0px;"></div></td></tr>
+                  <tr><td>6:</td><td><div id="a_ch6" class='box green' style="width: 0px;"></div></td><td>14:</td><td><div id="a_ch14" class='box green' style="width: 0px;"></div></td></tr>
+                  <tr><td>7:</td><td><div id="a_ch7" class='box green' style="width: 0px;"></div></td><td>15:</td><td><div id="a_ch15" class='box green' style="width: 0px;"></div></td></tr>
+                  <tr><td>8:</td><td><div id="a_ch8" class='box green' style="width: 0px;"></div></td><td>16:</td><td><div id="a_ch16" class='box green' style="width: 0px;"></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+<!--
+        <div class="row">
+          <div class="col-sm-12">
+            <div class="alert alert-success" role="alert">
+              <p align="right" id="ccButton" onclick="toggleDiv('divCCChart', 'ccButton');">Hide</p>
+            </div>
+          </div>
+        </div>
+        <div class="row" id="divCCChart">
+          <div class="col-12"><canvas id="ccChart" height=55></canvas></div>
+        </div>
+
+        <div class="row">
+          <div class="col-sm-12">
+            <div class="alert alert-success" role="alert">
+              <p align="right" id="iatButton" onclick="toggleDiv('divIATChart', 'iatButton');">Hide</p>
+            </div>
+          </div>
+        </div>
+        <div class="row" id="divIATChart">
+          <div class="col-12"><canvas id="iatChart" height=55></canvas></div>
+        </div>
+      
+        <div class="row">
+          <div class="col-sm-6">
+            <table class="table table-striped" id="pidtable">
+              <thead> <tr> <th>PID</th> <th>Packet Count</th> <th>Bitrate Mb/ps</th> <th>CC Errors</th> <th width=300>Payload Content</th> </tr>
+              </thead>
+              <tbody>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="col-sm-6">
+            <div class="embed-responsive embed-responsive-16by9">
+               <video id="video_1" autoplay muted width=300>Sorry, your browser doesn't support embedded videos.</video>
+            </div>
+            <table class="table">
+               <tr> <td class="small"><b>OnDemand Preview @ 2.5Mb/ps</b></td>
+                    <td align=right><button onclick="toggleMute();">Unmute</button></td>
+               </tr>
+            </table>
+          </div>
+        -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleDiv(id, button)
+{
+  var b = document.getElementById(button);
+  var x = document.getElementById(id);
+  if (x.style.display === "none") {
+    x.style.display = "block";
+    b.innerHTML = "Hide";
+  } else {
+    x.style.display = "none";
+    b.innerHTML = "Show";
+  }
+}
+
+var player;
+function toggleMute()
+{
+  player.mute = false;
+};
+
+//player_load("ws://192.168.2.45:10002/stream/live?01");
+
+function player_load(playbackURL) {
+    playingSeekableStream = false;
+
+    var i;
+    var mediaDataSource = {
+        type: 'mse'
+    };
+    mediaDataSource['url'] = playbackURL;
+    mediaDataSource['isLive'] = true;
+    mediaDataSource['liveBufferLatencyChasing'] = false;
+    mediaDataSource['withCredentials'] = false;
+    console.log('MediaDataSource', mediaDataSource);
+    player_load_mds(mediaDataSource);            
+}
+
+function loading_complete() {
+    console.log('loading complete');
+}
+
+function playback_error(e) {
+    console.log('function playback_error()');
+}
+
+//function player_load_mds(mediaDataSource) {
+//    var element = document.getElementById('video_1');
+
+    // create player and start playback
+//    var timeout = 0;
+//    setTimeout(function () {
+//        player = mpegts.createPlayer(mediaDataSource, {
+//            enableWorker: true,
+//            lazyLoadMaxDuration: 3 * 60,
+//            seekType: 'range',
+//            liveBufferLatencyChasing: false,
+//        });
+//        player.on(mpegts.Events.MEDIA_INFO, loading_complete);
+//        player.on(mpegts.Events.ERROR, playback_error);
+//        player.attachMediaElement(element);
+//        player.load();
+//    }, timeout);
+//}
+</script>
+
+</body>
+</html>
