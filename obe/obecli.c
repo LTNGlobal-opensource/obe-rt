@@ -179,6 +179,7 @@ static const char * stream_opts[] = { "action", "format",
                                       "gain", /* 48 */
                                       "remap", /* 49 */
                                       "mute", /* 50 */
+                                      "gop-closed", /* 51 */
                                       NULL };
 
 static const char * muxer_opts[]  = { "ts-type", "cbr", "ts-muxrate", "passthrough", "ts-id", "program-num", "pmt-pid", "pcr-pid",
@@ -822,6 +823,8 @@ static int set_stream( char *command, obecli_command_t *child )
             const char *tuning_name  = obe_get_option( stream_opts[45], opts );
             const char *dialnorm  = obe_get_option( stream_opts[46], opts );
 
+            char *gop_closed = obe_get_option( stream_opts[51], opts );
+
             int video_codec_id = 0; /* AVC */
             if (video_codec) {
                 if (strcasecmp(video_codec, "AVC") == 0)
@@ -1010,6 +1013,9 @@ extern char g_video_encoder_tuning_name[64];
                 avc_param->b_intra_refresh     = obe_otob( intra_refresh, avc_param->b_intra_refresh );
                 avc_param->i_frame_reference   = obe_otoi( max_refs, avc_param->i_frame_reference );
 
+                if (gop_closed && atoi(gop_closed) == 1) {
+                        avc_param->b_open_gop = 0;
+                }
                 if( profile )
                     parse_enum_value( profile, x264_profile_names, &cli.avc_profile );
 
