@@ -2996,8 +2996,39 @@ int main( int argc, char **argv )
 }
 
 /* RUNTIME STATISTICS */
+
+#include <stdio.h> // printf
+#include <stdlib.h> // labs
+#include <sys/time.h>
+
+void getISO8601(struct timespec *tspec, char *timestring)
+{
+    struct timespec tp;
+
+    if (tspec) {
+        tp = *tspec;
+    } else {
+        clock_gettime(CLOCK_REALTIME, &tp);
+    }
+
+    char buf[sizeof "9999-12-31T23:59:59.999+00:00"]; // 29 chars + '\0'
+
+    size_t bufsize = sizeof buf;
+    int off = 0;
+    struct tm *local = localtime(&tp.tv_sec);
+    off = strftime(buf, bufsize, "%FT%T", local); // same as "%Y-%m-%dT%H:%M:%S" 
+    off += snprintf(buf+off, bufsize-off, ".%03ld", tp.tv_nsec/1000000);
+    off += snprintf(buf+off, bufsize-off, "%c%02ld:%02ld", local->tm_gmtoff >= 0 ? '+' : '-', labs(local->tm_gmtoff)/3600, labs(local->tm_gmtoff)%3600/60); 
+
+    sprintf(timestring, buf);
+}
+
+
 #define LOCAL_DEBUG 0
+
+
 int g_core_runtime_statistics_to_file = 0;
+int g_core_runtime_statistics_to_port = 0;
 extern int ltnpthread_setname_np(pthread_t thread, const char *name);
 
 struct runtime_statistics_ctx
