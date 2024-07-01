@@ -65,3 +65,5 @@ obe/Makefile
 obe/Makefile.in
 obe/obecli
 obe/*.cfg
+webui/node_modules/
+webui/package-lock.json
