@@ -2811,7 +2811,7 @@ static void _usage(const char *prog, int exitcode)
     printf("\n");
 
     if (exitcode) {
-        printf("%s -s <script.txt>\n", prog);
+        printf("%s -c <script.txt>\n", prog);
         printf("\t-h              - Display command line helps.\n");
         printf("\t-c <script.txt> - Start OBE and begin executing a list of commands.\n");
         printf("\t-L <string>     - When writing to syslog, use the 'obe-<string>' name/tag. [def: unset]\n");
