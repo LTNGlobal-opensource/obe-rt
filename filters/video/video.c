@@ -35,6 +35,7 @@
 #define PREFIX "[video filter]: "
 
 int g_filter_video_fullsize_jpg = 0;
+char g_filter_video_fullsize_jpg_filename[256] = { 0 };
 
 #include "convert.h"
 
@@ -748,6 +749,7 @@ static void *start_filter_video( void *ptr )
     obe_output_stream_t *output_stream = get_output_stream_by_id(h, 0); /* FIXME when output_stream_id for video is not zero */
     int h_shift, v_shift;
     const AVPixFmtDescriptor *pfd;
+    time_t lastJPG = 0;
 
 #if DO_CRYSTAL_FP
     struct filter_analyze_fp_ctx *fp_ctx = NULL;
@@ -886,9 +888,16 @@ static void *start_filter_video( void *ptr )
         /* Allocate the thumbnailer on the fly, during runtime. */
         if (g_filter_video_fullsize_jpg) {
             if (vfilt->fc_ctx == NULL) {
-                filter_compress_alloc(&vfilt->fc_ctx, g_filter_video_fullsize_jpg);
+                filter_compress_alloc(&vfilt->fc_ctx, g_filter_video_fullsize_jpg_filename);
             } else {
-            	filter_compress_jpg(vfilt->fc_ctx, raw_frame);
+                /* Take a thumbnail once per second.
+                 * We intensioanlly don't deinterlace, the image is compressed as-is.
+                 */
+                time_t now = time(0);
+                if (now != lastJPG) {
+                    lastJPG = now;
+            	    filter_compress_jpg(vfilt->fc_ctx, raw_frame);
+                }
             }
         }
 
