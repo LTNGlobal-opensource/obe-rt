@@ -2236,6 +2236,29 @@ uint32_t obe_getProcessRuntimeSeconds()
 	return time(NULL) - obe_getProcessStartTime();
 }
 
+int obe_getProcessRuntimeAscii(char *buf, int len)
+{
+    if (len < 16)
+        return -1;
+
+    time_t s = obe_getProcessRuntimeSeconds();
+
+    int days = s / 86400;
+    s -= (days * 86400);
+
+    int hrs = s / 3600;
+    s -= (hrs * 3600);
+
+    int mins = s / 60;
+    s -= (mins * 60);
+
+    int secs = s;
+
+    sprintf(buf, "%d.%02d:%02d:%02d", days, hrs, mins, secs);
+
+    return 0;
+}
+
 static int g_platform_model = -1;
 int obe_core_get_platform_model()
 {
