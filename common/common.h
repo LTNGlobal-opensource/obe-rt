@@ -738,6 +738,8 @@ extern "C" {
 int obe_getTimestamp(char *s, time_t *when);
 void klsyslog_and_stdout(int level, const char *format, ...);
 
+int obe_getProcessRuntimeAscii(char *buf, int len);
+
 #ifdef __cplusplus
 };
 #endif
