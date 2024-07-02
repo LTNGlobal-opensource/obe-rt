@@ -11,7 +11,8 @@ const ENCODER_STATUS_HTTP_RX_PORT = 13100;   // Unused
 const ENCODER_STATUS_WEBSOCKET_PORT = 13200; // Unused
 
 // Receive NIC Monitor status json messages    
-const NIC_MONITOR_STATUS_HTTP_RX_PORT = 13300;     // nic monitor pushes here http://127.0.0.1:13300/nicmonitor/01
+// ltn encoder stats are pushed here http://127.0.0.1:13300/nicmonitor/01
+const NIC_MONITOR_STATUS_HTTP_RX_PORT = 13300;
 // Analyzer web-ui available here: http://192.168.2.45:13300/analyzer/index.html
 
 const NIC_MONITOR_STATUS_WEBSOCKET_PORT = 13400;   // analyzer webui pulls from here: ws://192.168.2.45:13400/stream/live?01
