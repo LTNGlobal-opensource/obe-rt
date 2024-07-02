@@ -9,11 +9,12 @@ int obe_http_post(char *msg)
 {
 	int ret = -1;
 
-    curl_global_init(CURL_GLOBAL_ALL);
+	curl_global_init(CURL_GLOBAL_ALL);
 
 	CURL *curl = curl_easy_init();
-	if (!curl)
-			return ret;
+	if (!curl) {
+		return ret;
+	}
 
 	struct curl_slist *headers = NULL;
 	headers = curl_slist_append(headers, "Accept: application/json");
@@ -30,10 +31,10 @@ int obe_http_post(char *msg)
 
 	CURLcode res = curl_easy_perform(curl);
 	if (res != CURLE_OK) {
-			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-			curl_easy_cleanup(curl);
+		fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		curl_easy_cleanup(curl);
 	} else {
-			ret = 0; /* Success */
+		ret = 0; /* Success */
 	}
 	curl_slist_free_all(headers);
 	curl_easy_cleanup(curl);
