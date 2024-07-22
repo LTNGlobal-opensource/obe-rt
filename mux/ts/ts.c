@@ -295,6 +295,7 @@ static const int mpegts_stream_info[][3] =
     { VIDEO_HEVC_X265,  LIBMPEGTS_VIDEO_HEVC,     LIBMPEGTS_STREAM_ID_MPEGVIDEO },
     { VIDEO_HEVC_VEGA3301,  LIBMPEGTS_VIDEO_HEVC,     LIBMPEGTS_STREAM_ID_MPEGVIDEO },
     { VIDEO_HEVC_VEGA3311,  LIBMPEGTS_VIDEO_HEVC,     LIBMPEGTS_STREAM_ID_MPEGVIDEO },
+    { VIDEO_AVC_VEGA3311,  LIBMPEGTS_VIDEO_AVC,     LIBMPEGTS_STREAM_ID_MPEGVIDEO },
     { VIDEO_AVC_VAAPI,  LIBMPEGTS_VIDEO_AVC,     LIBMPEGTS_STREAM_ID_MPEGVIDEO },
     { VIDEO_AVC_CPU_AVCODEC,  LIBMPEGTS_VIDEO_AVC,     LIBMPEGTS_STREAM_ID_MPEGVIDEO },
     { VIDEO_AVC_GPU_VAAPI_AVCODEC,  LIBMPEGTS_VIDEO_AVC,     LIBMPEGTS_STREAM_ID_MPEGVIDEO },
@@ -648,7 +649,8 @@ void *open_muxer( void *ptr )
         }
 
         if (stream_format == VIDEO_AVC || stream_format == VIDEO_HEVC_X265 || stream_format == VIDEO_AVC_VAAPI || stream_format == VIDEO_HEVC_VAAPI || stream_format == VIDEO_AVC_GPU_VAAPI_AVCODEC || stream_format == VIDEO_HEVC_GPU_VAAPI_AVCODEC ||
-            stream_format == VIDEO_AVC_CPU_AVCODEC || stream_format == VIDEO_HEVC_CPU_AVCODEC || stream_format == VIDEO_HEVC_GPU_NVENC_AVCODEC || stream_format == VIDEO_HEVC_VEGA3301 || stream_format == VIDEO_HEVC_VEGA3311)
+            stream_format == VIDEO_AVC_CPU_AVCODEC || stream_format == VIDEO_HEVC_CPU_AVCODEC || stream_format == VIDEO_HEVC_GPU_NVENC_AVCODEC || stream_format == VIDEO_HEVC_VEGA3301 ||
+            stream_format == VIDEO_HEVC_VEGA3311 || stream_format == VIDEO_AVC_VEGA3311)
         {
             encoder_wait( h, output_stream->output_stream_id );
 
@@ -733,8 +735,16 @@ void *open_muxer( void *ptr )
                 fprintf( stderr, "[ts] Could not setup AVC video stream\n" );
                 goto end;
             }
-        }
-        else if ((stream_format == VIDEO_AVC_GPU_VAAPI_AVCODEC) || (stream_format == VIDEO_AVC_CPU_AVCODEC))
+        } else if (stream_format == VIDEO_AVC_VEGA3311)
+        {
+            /* TODO: Make sure this is correct for the VEGA GPU codec settings.
+             * We're fixed to 5.2 and HIGH currently
+             */
+            if (ts_setup_mpegvideo_stream(w, stream->pid, 52, AVC_HIGH, 0, 0, 0) < 0) {
+                fprintf(stderr, PREFIX "Could not setup VEGA AVC GPU video stream\n");
+                goto end;
+            }
+        } else if ((stream_format == VIDEO_AVC_GPU_VAAPI_AVCODEC) || (stream_format == VIDEO_AVC_CPU_AVCODEC))
         {
             if (ts_setup_mpegvideo_stream(w, stream->pid, 40, AVC_HIGH, 0, 0, 0) < 0) {
                 fprintf(stderr, "[ts] Could not setup AVC GPU video stream\n");
@@ -748,7 +758,10 @@ void *open_muxer( void *ptr )
                 goto end;
             }
         }
-        else if (stream_format == VIDEO_HEVC_X265 || stream_format == VIDEO_HEVC_GPU_VAAPI_AVCODEC || stream_format == VIDEO_HEVC_GPU_NVENC_AVCODEC || stream_format == VIDEO_HEVC_CPU_AVCODEC || stream_format == VIDEO_HEVC_VEGA3301 || stream_format == VIDEO_HEVC_VEGA3311)
+        else if (stream_format == VIDEO_HEVC_X265 || stream_format == VIDEO_HEVC_GPU_VAAPI_AVCODEC ||
+            stream_format == VIDEO_HEVC_GPU_NVENC_AVCODEC || stream_format == VIDEO_HEVC_CPU_AVCODEC ||
+            stream_format == VIDEO_HEVC_VEGA3301 || stream_format == VIDEO_HEVC_VEGA3311)
+
         {
             if (ts_setup_mpegvideo_stream(w, stream->pid, 51, HEVC_PROFILE_MAIN, 0, 0, 0) < 0) {
                 fprintf(stderr, "[ts] Could not setup HEVC video stream\n");
