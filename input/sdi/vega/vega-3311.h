@@ -57,6 +57,7 @@ const char *lookupVegaEncodingChromaName(API_VEGA_BQB_CHROMA_FORMAT_E v);
 const char *lookupVegaEncodingResolutionName(int v);
 const char *lookupVegaAudioLayoutName(API_VEGA3311_CAP_AUDIO_LAYOUT_E v);
 const char *lookupVegaAudioPacketSizeName(API_VEGA3311_CAP_AUDIO_PACKET_SIZE_E v);
+const char *lookupVegaEncodingImageFormatName(int v);
 int vega_has_source_signal_changed(API_VEGA3311_CAPTURE_FORMAT_T *src, API_VEGA3311_CAPTURE_FORMAT_T *dst);
 
 const struct obe_to_vega_video *lookupVegaCaptureResolution(int std, int framerate, int interlaced);

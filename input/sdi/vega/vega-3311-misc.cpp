@@ -110,6 +110,26 @@ const char *lookupVegaEncodingResolutionName(int v)
         }
 }
 
+const char *lookupVegaEncodingImageFormatName(int v)
+{
+        switch (v) {
+        case API_VEGA_BQB_IMAGE_FORMAT_NV12:        return "API_VEGA_BQB_IMAGE_FORMAT_NV12";
+        case API_VEGA_BQB_IMAGE_FORMAT_NV16:        return "API_VEGA_BQB_IMAGE_FORMAT_NV16";
+        //case API_VEGA_BQB_IMAGE_FORMAT_I420:        return "API_VEGA_BQB_IMAGE_FORMAT_I420";
+        //case API_VEGA_BQB_IMAGE_FORMAT_PP01:        return "API_VEGA_BQB_IMAGE_FORMAT_PP01";
+        //case API_VEGA_BQB_IMAGE_FORMAT_PP21:        return "API_VEGA_BQB_IMAGE_FORMAT_PP21";
+        //case API_VEGA_BQB_IMAGE_FORMAT_I0AL:        return "API_VEGA_BQB_IMAGE_FORMAT_I0AL";
+        //case API_VEGA_BQB_IMAGE_FORMAT_I2AL:        return "API_VEGA_BQB_IMAGE_FORMAT_I2AL";
+        case API_VEGA_BQB_IMAGE_FORMAT_XV20:        return "API_VEGA_BQB_IMAGE_FORMAT_XV20";
+        case API_VEGA_BQB_IMAGE_FORMAT_YUV420:      return "API_VEGA_BQB_IMAGE_FORMAT_YUV420";
+        case API_VEGA_BQB_IMAGE_FORMAT_YUV420P010:  return "API_VEGA_BQB_IMAGE_FORMAT_YUV420P010";
+        case API_VEGA_BQB_IMAGE_FORMAT_YUV422P010:  return "API_VEGA_BQB_IMAGE_FORMAT_YUV422P010";
+        case API_VEGA_BQB_IMAGE_FORMAT_YUV420P10LE: return "API_VEGA_BQB_IMAGE_FORMAT_YUV420P10LE";
+        case API_VEGA_BQB_IMAGE_FORMAT_YUV422P10LE: return "API_VEGA_BQB_IMAGE_FORMAT_YUV422P10LE";
+        default:                                    return "UNDEFINED";
+        }
+}
+
 const char *lookupVegaEncodingChromaName(API_VEGA_BQB_CHROMA_FORMAT_E v)
 {
         switch (v) {
