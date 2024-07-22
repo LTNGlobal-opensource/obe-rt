@@ -91,7 +91,6 @@ extern "C"
 #define LOCAL_DEBUG 0
 
 #define FORCE_10BIT 1
-#define INSERT_HDR 0
 
 #define CAP_DBG_LEVEL API_VEGA3311_CAP_DBG_LEVEL_0
 
@@ -126,7 +125,13 @@ static int configureCodec(vega_opts_t *opts)
                 return -1;
         }
 
-        opts->codec.inputMode    = API_VEGA3311_CAP_INPUT_MODE_4CHN;
+        if (OPTION_ENABLED(4k_quad)) {
+                printf(MODULE_PREFIX "Enabling '4K' mode\n");
+                opts->codec.inputMode    = API_VEGA3311_CAP_INPUT_MODE_1CHN_QUAD;
+        } else { 
+                printf(MODULE_PREFIX "Enabling '4 individual channels' mode\n");
+                opts->codec.inputMode    = API_VEGA3311_CAP_INPUT_MODE_4CHN;
+        }
         opts->codec.inputSource  = API_VEGA3311_CAP_INPUT_SOURCE_SDI;
         opts->codec.sdiLevel     = API_VEGA3311_CAP_SDI_LEVEL_A;
         opts->codec.audioLayout  = API_VEGA3311_CAP_AUDIO_LAYOUT_16P0;
@@ -194,7 +199,7 @@ static int configureCodec(vega_opts_t *opts)
         }
 
         printf(MODULE_PREFIX "encoder.device       = %d\n", opts->brd_idx);
-        printf(MODULE_PREFIX "encoder.eFormat      = %d\n", opts->codec.eFormat);
+        printf(MODULE_PREFIX "encoder.eFormat      = %d '%s'\n", opts->codec.eFormat, lookupVegaEncodingImageFormatName(opts->codec.eFormat));
         printf(MODULE_PREFIX "encoder.inputsource  = %d '%s'\n", opts->codec.inputSource, lookupVegaInputSourceName(opts->codec.inputSource));
         printf(MODULE_PREFIX "encoder.inputport    = %d\n", opts->card_idx);
         printf(MODULE_PREFIX "encoder.sdilevel     = %d '%s'\n", opts->codec.sdiLevel, lookupVegaSDILevelName(opts->codec.sdiLevel));
@@ -278,7 +283,7 @@ static int open_device(vega_opts_t *opts, int probe)
         }
 
         if (ctx->h->enable_scte35) {
-                klsyslog_and_stdout(LOG_INFO, "Enabling option SCTE35");
+                klsyslog_and_stdout(LOG_INFO, MODULE_PREFIX "Enabling option SCTE35");
         } else {
                 /* Disable SCTE104 parsing callbacks, configuration optimization. */
                 vega3311_vanc_callbacks.scte_104 = NULL;
@@ -289,6 +294,10 @@ static int open_device(vega_opts_t *opts, int probe)
                 if (klvanc_smpte2038_packetizer_alloc(&ctx->smpte2038_ctx) < 0) {
                         fprintf(stderr, MODULE_PREFIX "Unable to allocate a SMPTE2038 context.\n");
                 }
+        }
+
+        if (OPTION_ENABLED(4k_quad)) {
+                klsyslog_and_stdout(LOG_INFO, MODULE_PREFIX "Enabling option 4K QUAD Input");
         }
 
         if (OPTION_ENABLED(hdr)) {
@@ -569,6 +578,7 @@ static void *vega_probe_stream(void *ptr)
 	opts->video_format = user_opts->video_format;
         opts->enable_smpte2038 = user_opts->enable_smpte2038;
         opts->enable_hdr = user_opts->enable_hdr;
+        opts->enable_4k_quad = user_opts->enable_4k_quad;
 #if 0
         opts->enable_vanc_cache = user_opts->enable_vanc_cache;
         opts->enable_bitstream_audio = user_opts->enable_bitstream_audio;
@@ -725,6 +735,7 @@ static void *vega_open_input(void *ptr)
 	opts->video_format       = user_opts->video_format;
         opts->enable_smpte2038   = user_opts->enable_smpte2038;
         opts->enable_hdr         = user_opts->enable_hdr;
+        opts->enable_4k_quad     = user_opts->enable_4k_quad;
 
         obe_output_stream_t *os = obe_core_get_output_stream_by_index(h, 0);
         if (!os) {
@@ -739,6 +750,11 @@ static void *vega_open_input(void *ptr)
               break;  
         }
         printf(MODULE_PREFIX "compression codec will be configured for %d bit\n", os->video_bit_depth);
+
+        //if (input->enable_4k_quad)
+        {
+
+        }
 #if 0
         opts->enable_vanc_cache = user_opts->enable_vanc_cache;
         opts->enable_bitstream_audio = user_opts->enable_bitstream_audio;
