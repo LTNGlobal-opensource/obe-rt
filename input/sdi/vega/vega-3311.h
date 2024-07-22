@@ -172,6 +172,7 @@ typedef struct
     int enable_smpte2038;
     int enable_hdr;
     int enable_4k_quad;
+    int enable_4k_2si;
 #if 0
     int enable_vanc_cache;
     int enable_bitstream_audio;

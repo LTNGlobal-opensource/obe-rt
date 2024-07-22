@@ -169,6 +169,7 @@ static const char * input_opts[]  = { "location", "card-idx", "video-format", "v
                                       "smpte2031", /* 15 */
                                       "timecode", /* 16 */
                                       "4k-quad", /* 17 */
+                                      "4k-2si", /* 18 */
                                       NULL };
 static const char * add_opts[] =    { "type" };
 /* TODO: split the stream options into general options, video options, ts options */
@@ -672,6 +673,7 @@ static int set_input( char *command, obecli_command_t *child )
         char *smpte2031 = obe_get_option( input_opts[15], opts );
         char *timecode = obe_get_option( input_opts[16], opts );
         char *enable_4k_quad = obe_get_option( input_opts[17], opts );
+        char *enable_4k_2si = obe_get_option( input_opts[18], opts );
 
         FAIL_IF_ERROR( video_format && ( check_enum_value( video_format, input_video_formats ) < 0 ),
                        "Invalid video format\n" );
@@ -704,6 +706,7 @@ static int set_input( char *command, obecli_command_t *child )
         cli.input.enable_smpte2031 = obe_otoi( smpte2031, cli.input.enable_smpte2031 );
         cli.input.enable_hdr = obe_otoi( hdr, cli.input.enable_hdr );
         cli.input.enable_4k_quad = obe_otoi( enable_4k_quad, cli.input.enable_4k_quad );
+        cli.input.enable_4k_2si = obe_otoi( enable_4k_2si, cli.input.enable_4k_2si );
         cli.input.enable_scte35 = obe_otoi( scte35, cli.input.enable_scte35 );
         cli.h->enable_scte35 = cli.input.enable_scte35; /* Put this on the core cache, no just in the input content. */
         cli.h->enable_timecode = obe_otoi( timecode, cli.h->enable_timecode ); /* Put this on the core cache, no just in the input content. */

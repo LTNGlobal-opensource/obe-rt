@@ -141,6 +141,7 @@ typedef struct
     int enable_allow_1080p60;
     int enable_hdr;
     int enable_4k_quad;
+    int enable_4k_2si;
     int enable_smpte2031;
 } obe_input_t;
 
