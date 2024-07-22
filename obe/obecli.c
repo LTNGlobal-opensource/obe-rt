@@ -203,6 +203,7 @@ static const char * stream_opts[] = { "action", "format",
                                       "remap", /* 49 */
                                       "mute", /* 50 */
                                       "gop-closed", /* 51 */
+                                      "bit-depth", /* 52 */
                                       NULL };
 
 static const char * muxer_opts[]  = { "ts-type", "cbr", "ts-muxrate", "passthrough", "ts-id", "program-num", "pmt-pid", "pcr-pid",
@@ -851,6 +852,21 @@ static int set_stream( char *command, obecli_command_t *child )
 
             char *gop_closed = obe_get_option( stream_opts[51], opts );
 
+            /* It's 100% always 8bit for X264. It can vary for VEGA codecs. */
+            char *bit_depth = obe_get_option( stream_opts[52], opts );
+            int n_bit_depth = 8;
+            if (bit_depth) {
+                n_bit_depth = atoi(bit_depth);
+                switch(n_bit_depth) {
+                case 8:
+                case 10:
+                    break;
+                default:
+                    fprintf(stderr, "Illegal bit depth %d, expected 8 or 10.\n", n_bit_depth);
+                    return -1;
+                }
+            }
+
             int video_codec_id = 0; /* AVC */
             if (video_codec) {
                 if (strcasecmp(video_codec, "AVC") == 0)
@@ -866,13 +882,13 @@ static int set_stream( char *command, obecli_command_t *child )
 #if HAVE_VEGA3311_CAP_TYPES_H
                 else
                 if (strcasecmp(video_codec, "HEVC_VEGA3311") == 0) {
-                    video_codec_id = 10; /* HEVC */
+                    video_codec_id = 10; /* HEVC_VEGA */
                     /* Enable SEI timestamping by default, for the code, but NOT for UDP output. */
                     g_sei_timestamping = 1;
                 }
                 else
                 if (strcasecmp(video_codec, "AVC_VEGA3311") == 0) {
-                    video_codec_id = 0; /* AVC via VEGA 3311  */
+                    video_codec_id = 11; /* AVC_VEGA */
                     /* Enable SEI timestamping by default, for the code, but NOT for UDP output. */
                     g_sei_timestamping = 1;
                 }
@@ -993,6 +1009,7 @@ extern char g_video_encoder_tuning_name[64];
 
                 /* Set it to encode by default */
                 cli.output_streams[output_stream_id].stream_action = STREAM_ENCODE;
+                cli.output_streams[output_stream_id].video_bit_depth = n_bit_depth;
 
                 if (video_codec_id == 0) {
                     cli.output_streams[output_stream_id].stream_format = VIDEO_AVC;
@@ -1020,6 +1037,12 @@ extern char g_video_encoder_tuning_name[64];
                 } else
                 if (video_codec_id == 8) {
                     cli.output_streams[output_stream_id].stream_format = VIDEO_HEVC_GPU_NVENC_AVCODEC;
+                } else
+                if (video_codec_id == 10) {
+                    cli.output_streams[output_stream_id].stream_format = VIDEO_HEVC_VEGA3311;
+                } else
+                if (video_codec_id == 11) {
+                    cli.output_streams[output_stream_id].stream_format = VIDEO_AVC_VEGA3311;
                 }
 
                 avc_param->rc.i_vbv_max_bitrate = obe_otoi( vbv_maxrate, 0 );

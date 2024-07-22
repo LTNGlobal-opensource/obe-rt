@@ -55,6 +55,9 @@ extern "C"
 static void deliver_video_nal(vega_opts_t *opts, unsigned char *buf, int lengthBytes, int64_t pts, int64_t dts)
 {
 	vega_ctx_t *ctx = &opts->ctx;
+#if LOCAL_DEBUG
+        printf(MODULE_PREFIX "%s() delivering nal\n", __func__);
+#endif
 
         obe_raw_frame_t *rf = new_raw_frame();
         if (!rf) {
@@ -112,10 +115,118 @@ static void deliver_video_nal(vega_opts_t *opts, unsigned char *buf, int lengthB
 }
 
 /* Called by the vega sdk when a newly compressed video frame is ready. */
-void vega3311_video_compressed_callback(API_VEGA_BQB_HEVC_CODED_PICT_T *p_pict, void *args)
+void vega3311_video_avc_compressed_callback(API_VEGA_BQB_AVC_CODED_PICT_T *p_pict, void *args)
+{
+        /* It's probably safe to colapse both HEVC and AVC callback functions into a single thing
+         * and cast the p_pict into the right type based on codec from args context.
+         * Until we know for sure the timing is exactly the same, I want to avoid significant unification.
+         */
+        vega_opts_t *opts = (vega_opts_t *)args;
+	vega_ctx_t *ctx = &opts->ctx;
+
+#if LOCAL_DEBUG
+        printf(MODULE_PREFIX "%s() recd AVC es video frames\n", __func__);
+#endif
+
+        if (ctx->bLastFrame) {
+                /* Encoder wants to shut down */
+                return;
+        }
+#if 0
+        FILE *fh = fopen("/storage/ltn/vega/avc-pic-data.nals", "a+");
+        if (fh) {
+                fwrite(p_pict, 1, 16 * sizeof(int64_t), fh);
+                fclose(fh);
+                printf(MODULE_PREFIX "Wrote %d bytes\n", sizeof(*p_pict));
+        }
+#endif
+
+        /* When the value wraps, make sure we disgregard iffy bits 63-33.
+         * The result is a pure 33bit guaranteed positive number.
+         */
+        int64_t adjustedPicPTS = p_pict->pts & 0x1ffffffffLL;
+        int64_t adjustedPicDTS = p_pict->dts & 0x1ffffffffLL;
+
+        if (adjustedPicDTS < ctx->lastAdjustedPicDTS) {
+                /* Detect the wrap, adjust the constant accumulator */
+                ctx->videoDTSOffset += 0x1ffffffffLL;
+                printf(MODULE_PREFIX "Bumping DTS base\n");
+        }
+        if (adjustedPicPTS < ctx->lastAdjustedPicPTS) {
+                /* Detect the wrap, adjust the constant accumulator */
+                ctx->videoPTSOffset += 0x1ffffffffLL;
+                printf(MODULE_PREFIX "Bumping PTS base\n");
+        }
+
+        /* Compute a new PTS/DTS based on a constant accumulator and guaranteed positive PTS/DTS value */
+        int64_t correctedPTS = ctx->videoDTSOffset + adjustedPicPTS;
+        int64_t correctedDTS = ctx->videoPTSOffset + adjustedPicDTS;
+
+        /* The upshot is that the correctPTS and correctDTS should always increase over time regardless of
+         * wrapping and can be used to pass downstream (same as the decklink).
+         */
+        for (unsigned int i = 0; i < p_pict->u32NalNum; i++) {
+
+                if (g_decklink_monitor_hw_clocks) {
+                        printf(MODULE_PREFIX "corrected  pts: %15" PRIi64 "  dts: %15" PRIi64
+                                " adjustedPicPTS %15" PRIi64 " adjustedPicDTS %15" PRIi64
+                                " ctx->videoPTSOffset %15" PRIi64 " ctx->videoDTSOffset %15" PRIi64 "\n",
+                                correctedPTS, correctedDTS,
+                                adjustedPicPTS, adjustedPicDTS,
+                                ctx->videoPTSOffset, ctx->videoDTSOffset
+                        );
+                        printf(MODULE_PREFIX "pic        pts: %15" PRIi64 "  dts: %15" PRIi64 " base %012" PRIu64 " ext %012d frametype: %s  addr: %p length %7d -- ",
+                                p_pict->pts,
+                                p_pict->dts,
+                                p_pict->u64ItcBase,
+                                p_pict->u32ItcExt,
+                                vega_lookupFrameType(p_pict->eFrameType),
+                                p_pict->tNalInfo[i].pu8Addr, p_pict->tNalInfo[i].u32Length);
+                        int dlen = p_pict->tNalInfo[i].u32Length;
+                        if (dlen > 32)
+                                dlen = 32;
+
+                        for (int j = 0; j < dlen; j++)
+                                printf("%02x ", p_pict->tNalInfo[i].pu8Addr[j]);
+                        printf("\n");
+                }
+
+                if (g_sei_timestamping) {
+                        /* Find the latency SEI and update it. */
+                        if (p_pict->tNalInfo[i].u32Length == (7 + SEI_TIMESTAMP_PAYLOAD_LENGTH)) {
+                                int offset = ltn_uuid_find(p_pict->tNalInfo[i].pu8Addr, p_pict->tNalInfo[i].u32Length);
+                                if (offset >= 0) {
+                                        struct timeval tv;
+                                        gettimeofday(&tv, NULL);
+
+                                        /* Add the time exit from compressor seconds/useconds. */
+                                        sei_timestamp_field_set(&p_pict->tNalInfo[i].pu8Addr[offset], p_pict->tNalInfo[i].u32Length - offset, 6, tv.tv_sec);
+                                        sei_timestamp_field_set(&p_pict->tNalInfo[i].pu8Addr[offset], p_pict->tNalInfo[i].u32Length - offset, 7, tv.tv_usec);
+                                }
+                        }
+                }
+                /* TODO: Decision here. Coalesce all nals into a single allocation - better performance, one raw frame downstream. */
+
+                deliver_video_nal(opts, p_pict->tNalInfo[i].pu8Addr, p_pict->tNalInfo[i].u32Length, correctedPTS, correctedDTS);
+        }
+
+        ctx->videoLastDTS = p_pict->dts;
+        ctx->videoLastPTS = p_pict->pts;
+        ctx->lastAdjustedPicPTS = adjustedPicPTS;
+        ctx->lastAdjustedPicDTS = adjustedPicDTS;
+        ctx->lastcorrectedPicPTS = correctedPTS;
+        ctx->lastcorrectedPicDTS = correctedDTS;
+}
+
+/* Called by the vega sdk when a newly compressed video frame is ready. */
+void vega3311_video_hevc_compressed_callback(API_VEGA_BQB_HEVC_CODED_PICT_T *p_pict, void *args)
 {
         vega_opts_t *opts = (vega_opts_t *)args;
 	vega_ctx_t *ctx = &opts->ctx;
+
+#if LOCAL_DEBUG
+        printf(MODULE_PREFIX "%s() recd HEVC es video frames\n", __func__);
+#endif
 
         if (ctx->bLastFrame) {
                 /* Encoder wants to shut down */
@@ -209,7 +320,7 @@ void vega3311_video_compressed_callback(API_VEGA_BQB_HEVC_CODED_PICT_T *p_pict, 
 
 }
 
-/* Callback from the video capture device */
+/* Callback from the video capture device, we're handed a raw frame */
 void vega3311_video_capture_callback(uint32_t u32DevId,
         API_VEGA3311_CAP_CHN_E eCh,
         API_VEGA3311_CAPTURE_FRAME_INFO_T *st_frame_info,
@@ -218,6 +329,10 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
 {
         vega_opts_t *opts = (vega_opts_t *)pv_user_arg;
 	vega_ctx_t *ctx = &opts->ctx;
+
+#if LOCAL_DEBUG
+        printf(MODULE_PREFIX "%s() recd raw video frame\n", __func__);
+#endif
 
         if (ctx->bLastFrame) {
                 /* Encoder wants to shut down */
@@ -346,6 +461,10 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
 
         if (opts->codec.eFormat == API_VEGA_BQB_IMAGE_FORMAT_YUV422P10LE) {
                 /* If 10bit 422 .... Colorspace convert Y210 into yuv422p10le */
+#if LOCAL_DEBUG
+        printf(MODULE_PREFIX "%s() dora raw video frame\n", __func__);
+        return;
+#endif
 
                 /*  len as expressed in bytes. No stride */
                 int ylen = (opts->width * opts->height) * 2;
@@ -389,8 +508,34 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
                         obe_getTimestamp(ts, NULL);
                         YUV422P10LE_painter_draw_ascii_at(&pctx, 2, 2, ts);
                 }
-        } else if (opts->codec.eFormat == API_VEGA_BQB_IMAGE_FORMAT_YUV422P010) {
-                /* If 10bit 422 .... Colorspace convert Y210 into NV20 (mislabeled by Advantech as P210) */
+        } else if ((opts->codec.eFormat == API_VEGA_BQB_IMAGE_FORMAT_YUV422P010) ||
+                (opts->codec.eFormat == API_VEGA_BQB_IMAGE_FORMAT_YUV420P010))
+        {
+#if LOCAL_DEBUG
+        printf(MODULE_PREFIX "%s() dorb raw video frame, known working path\n", __func__);
+#endif
+/*
+  8x 16bit words:
+   y0 bits 15-6
+  cb0 bits 15-6
+   y1 bits 15-6
+  cb1 bits 15-6
+   y2 bits 15-6
+  cb2 bits 15-6
+   y3 bits 15-6
+  cb3 bits 15-6
+
+
+  YYYY YYYY YY          CCCC CCCC CC          YYYY YYYY YY          CCCC CCCC CC          YYYY YYYY YY          CCCC CCCC CC          YYYY YYYY YY          CCCC CCCC CC       
+  0000|0000 0000|0000   0000|0000 0000|0000   0000|0000 0000|0000   0000|0000 0000|0000   0000|0000 0000|0000   0000|0000 0000|0000   0000|0000 0000|0000   0000|0000 0000|0000
+
+  YYYY|YYYY YYYY|YYYY   YYYY|YYYY YYYY|YYYY   YYYY|YYYY
+
+*/
+
+                /* If 10bit 422 .... Colorspace convert Y210 into NV20 (mislabeled by Advantech as P210).
+                 * If we're encoding in 422_to_420 mode, we also come through this path.
+                 */
 
                 /*  len as expressed in bytes. No stride */
                 int ylen = (opts->width * opts->height) * 5 / 4;
@@ -433,10 +578,22 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
                 img.pu8Addr     = dst[0];
                 img.u32Size     = dstlen;
                 img.eFormat     = opts->codec.eFormat;
-        } else {
+        } else if (opts->codec.eFormat == API_VEGA_BQB_IMAGE_FORMAT_NV12) {
+#if LOCAL_DEBUG
+        printf(MODULE_PREFIX "%s() dord raw video frame, NV12 8bit 4:2:0\n", __func__);
+#endif
                 img.pu8Addr     = st_frame_info->u8pDataBuf;
                 img.u32Size     = st_frame_info->u32BufSize;
-                //img.eFormat     = API_VEGA_BQB_IMAGE_FORMAT_NV16; /* 4:2:2 8bit */
+                //img.eFormat     = API_VEGA_BQB_IMAGE_FORMAT_NV12; /* 4:2:0 8bit */
+        } else {
+
+//#if LOCAL_DEBUG
+        printf(MODULE_PREFIX "%s() dorc raw video frame, unsupported, opts->codec.eFormat = 0x%x\n", __func__, opts->codec.eFormat);
+//        return;
+//#endif
+                img.pu8Addr     = st_frame_info->u8pDataBuf;
+                img.u32Size     = st_frame_info->u32BufSize;
+                img.eFormat     = API_VEGA_BQB_IMAGE_FORMAT_YUV420P010; /* 4:2:0 10bit */
         }
 
         img.eFormat     = opts->codec.eFormat;
@@ -832,6 +989,218 @@ API_VEGA_BQB_FPS_60,
                 ctx->init_params.tHevcParam.tHdrConfig.u32MaxDisplayMasteringLuminance = 10000000;
                 ctx->init_params.tHevcParam.tHdrConfig.u32MinDisplayMasteringLuminance = 500;
 #endif
+        }
+
+        if (VEGA_BQB_ENC_IsDeviceModeConfigurable((API_VEGA_BQB_DEVICE_E)opts->brd_idx)) {
+                fprintf(stderr, "DEVICE MODE IS CONFIGURABLE\n");
+                API_VEGA_BQB_ENCODE_CONFIG_T encode_config;
+                memset(&encode_config, 0, sizeof(API_VEGA_BQB_ENCODE_CONFIG_T));
+                switch (ctx->init_params.tHevcParam.eResolution) {
+                case API_VEGA_BQB_RESOLUTION_4096x2160:
+                case API_VEGA_BQB_RESOLUTION_3840x2160:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_1CH_4K2K;
+                        break;
+                case API_VEGA_BQB_RESOLUTION_2048x1080:
+                case API_VEGA_BQB_RESOLUTION_1920x1080:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_4CH_1080P;
+                        break;
+                case API_VEGA_BQB_RESOLUTION_1280x720:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_8CH_720P;
+                        break;
+                case API_VEGA_BQB_RESOLUTION_720x576:
+                case API_VEGA_BQB_RESOLUTION_720x480:
+                case API_VEGA_BQB_RESOLUTION_416x240:
+                case API_VEGA_BQB_RESOLUTION_352x288:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_16CH_SD;
+                        break;
+                default:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_1CH_4K2K;
+                        break;
+                }
+
+                VEGA_BQB_ENC_ConfigDeviceMode((API_VEGA_BQB_DEVICE_E)opts->brd_idx, &encode_config);
+        }
+
+        return 0; /* success */
+}
+
+int vega3311_video_configure_avc(vega_opts_t *opts)
+{
+
+/**
+@brief Creates a API_VEGA_BQB_INIT_PARAM_T structure for H.264 encode.
+
+The \b VEGA_BQB_ENC_MakeAVCInitParam function helps user to create a VEGA331X init parameter, which can be used to initialize the 1-1 AVC encoder.
+
+@param pApiInitParam    pointer to init parameter to be set; provided by caller.
+@param eProfile         profile value.
+@param eLevel           level value
+@param eResolution      resolution value.
+@param eChromaFmt       chroma format.
+@param eBitDepth        bit depth.
+@param eTargetFrameRate frame rate value.
+@param u32Bitrate       bitrate value in kbps. 0 < u32Bitrate <= API_MAX_BITRATE.
+@param u32CpbDelay      CPB delay value.
+@return
+- API_VEGA_BQB_RET_SUCCESS: Successful
+- API_VEGA_BQB_RET_FAIL: Failed
+*/
+LIBVEGA_BQB_API API_VEGA_BQB_RET
+VEGA_BQB_ENC_MakeAVCInitParam
+(
+        API_VEGA_BQB_INIT_PARAM_T      *pApiInitParam,
+  const API_VEGA_BQB_AVC_PROFILE_E      eProfile,
+  const API_VEGA_BQB_AVC_LEVEL_E        eLevel,
+  const API_VEGA_BQB_RESOLUTION_E       eResolution,
+  const API_VEGA_BQB_CHROMA_FORMAT_E    eChromaFmt,
+  const API_VEGA_BQB_BIT_DEPTH_E        eBitDepth,
+  const API_VEGA_BQB_FPS_E              eTargetFrameRate,
+  const uint32_t                        u32Bitrate,
+  const uint32_t                        u32CpbDelay
+);
+
+	printf(MODULE_PREFIX "%s()\n", __func__);
+
+	vega_ctx_t *ctx = &opts->ctx;
+
+        if (VEGA_BQB_ENC_MakeAVCInitParam(
+                &ctx->init_params,
+                API_VEGA_BQB_AVC_HIGH_PROFILE, // API_VEGA_BQB_AVC_HIGH_PROFILE,
+                API_VEGA_BQB_AVC_LEVEL_52,
+                opts->codec.encodingResolution,
+                opts->codec.chromaFormat,
+                opts->codec.bitDepth,
+                opts->codec.fps,
+                opts->codec.bitrate_kbps,
+                270000) != 0)
+        {
+                fprintf(stderr, MODULE_PREFIX "FAILED TO CALL MACRO TO CONFIGURE\n");
+        }
+        ctx->init_params.eOutputFmt = API_VEGA_BQB_STREAM_OUTPUT_FORMAT_ES;
+        ctx->init_params.tAvcParam.eGopType = API_VEGA_BQB_GOP_IP;
+        fprintf(stderr, MODULE_PREFIX "CALLED MACRO TO CONFIGURE AVC\n");
+
+        ctx->init_params.tAvcParam.eInputMode       = API_VEGA_BQB_INPUT_MODE_DATA;  /* Source data from Host */
+        ctx->init_params.tAvcParam.eInputPort       = (API_VEGA_BQB_VIF_MODE_INPUT_PORT_E)opts->card_idx; // API_VEGA_BQB_VIF_MODE_INPUT_PORT_A;
+
+        VEGA_BQB_ENC_SetDbgMsgLevel((API_VEGA_BQB_DEVICE_E)opts->brd_idx, (API_VEGA_BQB_CHN_E)opts->card_idx, API_VEGA_BQB_DBG_LEVEL_0);
+
+        /* Configure HDR */
+        if (OPTION_ENABLED(hdr)) {
+                /* No HDR support in H.264 */
+        }
+
+        if (VEGA_BQB_ENC_IsDeviceModeConfigurable((API_VEGA_BQB_DEVICE_E)opts->brd_idx)) {
+                fprintf(stderr, "DEVICE MODE IS CONFIGURABLE\n");
+                API_VEGA_BQB_ENCODE_CONFIG_T encode_config;
+                memset(&encode_config, 0, sizeof(API_VEGA_BQB_ENCODE_CONFIG_T));
+                switch (ctx->init_params.tAvcParam.eResolution) {
+                case API_VEGA_BQB_RESOLUTION_4096x2160:
+                case API_VEGA_BQB_RESOLUTION_3840x2160:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_1CH_4K2K;
+                        break;
+                case API_VEGA_BQB_RESOLUTION_2048x1080:
+                case API_VEGA_BQB_RESOLUTION_1920x1080:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_4CH_1080P;
+                        break;
+                case API_VEGA_BQB_RESOLUTION_1280x720:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_8CH_720P;
+                        break;
+                case API_VEGA_BQB_RESOLUTION_720x576:
+                case API_VEGA_BQB_RESOLUTION_720x480:
+                case API_VEGA_BQB_RESOLUTION_416x240:
+                case API_VEGA_BQB_RESOLUTION_352x288:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_16CH_SD;
+                        break;
+                default:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_1CH_4K2K;
+                        break;
+                }
+
+                VEGA_BQB_ENC_ConfigDeviceMode((API_VEGA_BQB_DEVICE_E)opts->brd_idx, &encode_config);
+        }
+
+        return 0; /* success */
+}
+
+int vega3311_video_configure_avc2(vega_opts_t *opts)
+{
+	printf(MODULE_PREFIX "%s()\n", __func__);
+return -1;
+
+	vega_ctx_t *ctx = &opts->ctx;
+
+// API_VENC_INIT_PARAM_T
+        ctx->init_params.eCodecType             = API_VEGA_BQB_CODEC_TYPE_AVC;
+        ctx->init_params.eOutputFmt             = API_VEGA_BQB_STREAM_OUTPUT_FORMAT_ES;
+
+        /* HEVC */
+        ctx->init_params.tAvcParam.eInputMode       = API_VEGA_BQB_INPUT_MODE_DATA;  /* Source data from Host */
+        //ctx->init_params.tHevcParam.eInputMode       = API_VEGA_BQB_INPUT_MODE_VIF_SQUARE;
+        ctx->init_params.tAvcParam.eInputPort       = (API_VEGA_BQB_VIF_MODE_INPUT_PORT_E)opts->card_idx; // API_VEGA_BQB_VIF_MODE_INPUT_PORT_A;
+        ctx->init_params.tAvcParam.eRobustMode      = API_VEGA_BQB_VIF_ROBUST_MODE_BLUE_SCREEN;
+        ctx->init_params.tAvcParam.eProfile         = API_VEGA_BQB_AVC_HIGH_PROFILE;
+        ctx->init_params.tAvcParam.eLevel           = API_VEGA_BQB_AVC_LEVEL_42;
+        ctx->init_params.tAvcParam.eEntropyCoding   = API_VEGA_BQB_AVC_ENTROPY_CODING_CABAC;
+        ctx->init_params.tAvcParam.eResolution      = opts->codec.encodingResolution;
+        ctx->init_params.tAvcParam.bAspectRatioInfoPresent  = true;
+        ctx->init_params.tAvcParam.eAspectRatioIdc  = API_VEGA_BQB_AVC_ASPECT_RATIO_IDC_1;
+
+        ctx->init_params.tAvcParam.u32SarWidth     = opts->width;
+        ctx->init_params.tAvcParam.u32SarHeight    = opts->height;
+        ctx->init_params.tAvcParam.bDisableTimingInfoPresent = false;
+        //ctx->init_params.tAvcParam.eFormat          = opts->codec.eFormat;
+        ctx->init_params.tAvcParam.eChromaFmt       = opts->codec.chromaFormat;
+        //ctx->init_params.tAvcParam.tChromaConvertInfo       = 
+        ctx->init_params.tAvcParam.eOverScan       = API_VEGA_BQB_OVERSCAN_INFO_INAPPROPRIATE;
+        ctx->init_params.tAvcParam.tVideoSignalType.bPresentFlag = false;
+        //ctx->init_params.tAvcParam.tVideoSignalType.eVideoFormat =
+        //ctx->init_params.tAvcParam.tVideoSignalType.bVideoFullRange =
+        //ctx->init_params.tAvcParam.tVideoSignalType.tColorDesc =
+        ctx->init_params.tAvcParam.tChromaLocation.bChromaLoc = false;
+        
+        ctx->init_params.tAvcParam.eBitDepth        = opts->codec.bitDepth;
+        ctx->init_params.tAvcParam.bInterlace       = opts->codec.interlaced;
+        ctx->init_params.tAvcParam.bDisableSceneChangeDetect       = false;
+        ctx->init_params.tAvcParam.eScPicType       = API_VEGA_BQB_SC_PICTYPE_I;
+ 
+        /* Prevent 1920x1080 encodes coming out as 1920x1088 */
+        ctx->init_params.tAvcParam.tCrop.u32CropLeft   = 0;
+        ctx->init_params.tAvcParam.tCrop.u32CropRight  = 0;
+        ctx->init_params.tAvcParam.tCrop.u32CropTop    = 0;
+        ctx->init_params.tAvcParam.tCrop.u32CropBottom = ctx->init_params.tAvcParam.u32SarHeight % 16;
+
+        ctx->init_params.tAvcParam.eTargetFrameRate = opts->codec.fps;
+
+// tcustomedframerateinfo
+        ctx->init_params.tAvcParam.ePtsMode         = API_VEGA_BQB_PTS_MODE_AUTO;
+        ctx->init_params.tAvcParam.eIDRFrameNum     = API_VEGA_BQB_IDR_FRAME_ALL;
+        ctx->init_params.tAvcParam.bIDRDisplayOrderFirst     = true;
+        if (opts->codec.bframes) {
+                ctx->init_params.tAvcParam.eGopType = API_VEGA_BQB_GOP_IPB;
+        } else {
+                ctx->init_params.tAvcParam.eGopType = API_VEGA_BQB_GOP_IP;
+        }
+        ctx->init_params.tAvcParam.eGopHierarchy = API_VEGA_BQB_GOP_HIERARCHY;
+ 
+        ctx->init_params.tAvcParam.eGopSize         = opts->codec.gop_size;
+        ctx->init_params.tAvcParam.eBFrameNum       = opts->codec.bframes;
+        ctx->init_params.tAvcParam.bDisableTemporalId = false;
+        ctx->init_params.tAvcParam.eRateCtrlAlgo    = API_VEGA_BQB_RATE_CTRL_ALGO_CBR;
+        //ctx->init_params.tAvcParam.u32FillerTriggerLevel    = 
+        ctx->init_params.tAvcParam.u32Bitrate       = opts->codec.bitrate_kbps;
+// u32MaxVBR
+// u32AveVBR
+// u32MinVBR
+// u32CpbDelay
+        ctx->init_params.tAvcParam.tCoding.bDisableDeblocking  = false;
+// tHdrConfig
+
+        VEGA_BQB_ENC_SetDbgMsgLevel((API_VEGA_BQB_DEVICE_E)opts->brd_idx, (API_VEGA_BQB_CHN_E)opts->card_idx, API_VEGA_BQB_DBG_LEVEL_3);
+
+        /* Configure HDR */
+        if (OPTION_ENABLED(hdr)) {
+                /* No HDR support in H.264 */
         }
 
         return 0; /* success */

@@ -450,6 +450,9 @@ typedef struct
     char gain_db[16];
     double audioGain;
 
+    /* VEGA codec bit depth */
+    int video_bit_depth;
+
 } obe_output_stream_t;
 
 int obe_setup_streams( obe_t *h, obe_output_stream_t *output_streams, int num_streams );
