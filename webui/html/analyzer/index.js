@@ -153,7 +153,7 @@ var br_chart = new Chart(ctx,
 		},
 		title: {
      display: true,
-      text: 'Bitrate (Mb/ps)'
+      text: 'Bitrate (Mb/s)'
     }
 	}
 });
