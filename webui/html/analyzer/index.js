@@ -361,7 +361,7 @@ function webSocketInvoke()
       document.getElementById('hostname').innerHTML = blob.platform.host;
       document.getElementById('processid').innerHTML = blob.platform.pid;
       document.getElementById('cpupct').innerHTML = blob.platform.cpu_pct + '%';
-      document.getElementById('temperature').innerHTML = blob.platform.temperature + ' c';
+      document.getElementById('temperature').innerHTML = blob.platform.temperature + '&deg;C';
       document.getElementById('signalformat').innerHTML = blob.signal.format;
       document.getElementById('los_time').innerHTML = iso8601_to_str(blob.signal.los_time);
       document.getElementById('acq_time').innerHTML = iso8601_to_str(blob.signal.acq_time);
