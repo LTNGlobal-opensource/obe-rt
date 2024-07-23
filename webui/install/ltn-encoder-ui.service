@@ -1,0 +1,18 @@
+# /usr/lib/systemd/system/ltn-encoder-ui.service
+[Unit]
+Description=LTN Encoder - UI
+Documentation=https://www.ltnglobal.com
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ltn
+WorkingDirectory=/home/ltn/ltn_encoder/webui
+ExecStart=/usr/bin/node /home/ltn/ltn_encoder/webui/server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

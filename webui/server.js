@@ -13,7 +13,7 @@ const ENCODER_STATUS_WEBSOCKET_PORT = 13200; // Unused
 // Receive NIC Monitor status json messages    
 // ltn encoder stats are pushed here http://127.0.0.1:13300/nicmonitor/01
 const NIC_MONITOR_STATUS_HTTP_RX_PORT = 13300;
-// Analyzer web-ui available here: http://192.168.2.45:13300/analyzer/index.html
+// Analyzer web-ui available here: http://192.168.2.45:13300/analyzer/index.html or http://192.168.2.45:13300/analyzer/index.html?idx=1..8
 
 const NIC_MONITOR_STATUS_WEBSOCKET_PORT = 13400;   // analyzer webui pulls from here: ws://192.168.2.45:13400/stream/live?01
 
@@ -32,14 +32,14 @@ const videoTXChannels = {
     '06': new Set (),
     '07': new Set (),
     '08': new Set (),
-	'09': new Set (),
-	'10': new Set (),
-	'11': new Set (),
-	'12': new Set (),
-	'13': new Set (),
-	'14': new Set (),
-	'15': new Set (),
-	'16': new Set (),
+    '09': new Set (),
+    '10': new Set (),
+    '11': new Set (),
+    '12': new Set (),
+    '13': new Set (),
+    '14': new Set (),
+    '15': new Set (),
+    '16': new Set (),
 }
 
 function heartbeat() {
@@ -188,7 +188,7 @@ encoderStatusSocketServer.on('connection', function(socket, req) {
 
 		try {
 	        encoderStatusChannels[reqChannel].delete(socket)
-			console.log('del Connection ' + reqChannel + ' ' + encoderStatusSocketServer.connectionCount)
+			console.log('del ConnectionES ' + reqChannel + ' ' + encoderStatusSocketServer.connectionCount)
 		} catch(e) {
 			console.log('Tried to disconnect to undefined socket ' + e)
 		}
@@ -289,7 +289,8 @@ nicMonitorStatusSocketServer.on('connection', function(socket, req) {
 	// where reqChannel becomes 5
     let reqChannel =  url.parse(req.url).query
 
-	console.log('New Nic Monitor websocket Connection ' + reqChannel + ' ' + nicMonitorStatusSocketServer.connectionCount)
+	const event = new Date();
+	console.log(event.toISOString() + ': New client websocket Connection ' + reqChannel + ' ' + nicMonitorStatusSocketServer.connectionCount)
     try {
 		nicMonitorStatusChannels[reqChannel].add(socket)
 	} catch(e) {
@@ -302,7 +303,8 @@ nicMonitorStatusSocketServer.on('connection', function(socket, req) {
 
 		try {
 	        nicMonitorStatusChannels[reqChannel].delete(socket)
-			console.log('del Connection ' + reqChannel + ' ' + nicMonitorStatusSocketServer.connectionCount)
+			const event = new Date();
+			console.log(event.toISOString() + ': Stats - deleted connection ' + reqChannel + ' ' + nicMonitorStatusSocketServer.connectionCount)
 		} catch(e) {
 			console.log('Tried to disconnect to undefined socket ' + e)
 		}
@@ -336,17 +338,21 @@ nicMonitorStatusSocketServer.broadcast = function(data) {
 
 var nicMonitorStatusServer = http.createServer( function(request, response) {
 
-	console.log(request.url)
+//	console.log(request.url)
 
 	if (request.url.startsWith('/nicmonitor/')) {
 		var params = request.url.substring(1).split('/');
-		console.log(params)
-		console.log(`Starting NIC Monitor Status relay`)
-		console.log(
-			'Nic Monitoring probe Connected: ' +
-			request.socket.remoteAddress + ':' +
-			request.socket.remotePort
-		);
+		if (0) {
+			console.log(params)
+			console.log(
+				'Nic Monitoring probe Connected: ' +
+				request.socket.remoteAddress + ':' +
+				request.socket.remotePort
+			);
+		}
+
+		const event = new Date();
+		console.log(event.toISOString() + ': Stats Monitor - update for ' + request.url)
 
 		request.on('data', function(data) {
 			// Push the incoming json to every registered websocket socket.
@@ -358,7 +364,7 @@ var nicMonitorStatusServer = http.createServer( function(request, response) {
 		});
 
 		request.on('end',function() {
-			console.log('tstools_nic_monitor disconnect')
+			//console.log('tstools_nic_monitor disconnect')
 			response.end()
 		});
 	} else
@@ -410,7 +416,9 @@ var nicMonitorStatusServer = http.createServer( function(request, response) {
 	} else {
 		var requestUrl = url.parse(request.url)    
 		response.writeHead(200)
-		console.log('reading ' + requestUrl.pathname)
+		if (0) {
+			console.log('reading file ' + requestUrl.pathname)
+		}
 		fs.createReadStream('html' + requestUrl.pathname).pipe(response)  // do NOT use fs's sync methods ANYWHERE on production (e.g readFileSync) 
 	}
 })

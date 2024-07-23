@@ -301,8 +301,10 @@ function updatePidTable(pid, packetcount, mbps, cc)
 
 function processAudio(nr, level, inputtype)
 {
-  if (parseInt(level) != 0) {
-    document.getElementById('a_ch' + nr).style.width = (90 + level) * 3.5;
+  var l = parseInt(level);
+  l = (l / 100) * 100; // Remove any crazy precision
+  if (l != 0) {
+    document.getElementById('a_ch' + nr).style.width = (90 + l) * 3.5;
   } else {
     document.getElementById('a_ch' + nr).style.width = 0;
     if (inputtype != 'bitstream') {
@@ -311,7 +313,7 @@ function processAudio(nr, level, inputtype)
   }
 
   if (inputtype == "pcm") {
-    document.getElementById('a_ch' + nr).innerHTML = 'PCM ' + level;
+    document.getElementById('a_ch' + nr).innerHTML = 'PCM ' + l;
   }
   if (inputtype == "bitstream") {
     document.getElementById('a_ch' + nr).style.width = 100;
@@ -324,9 +326,17 @@ function processAudio(nr, level, inputtype)
 
 function webSocketInvoke()
 {
+  const queryString = window.location.search;
+  const urlParams = new URLSearchParams(queryString);
+  encoderidx = urlParams.get('idx')
+  if (encoderidx == null) {
+    encoderidx = 1;
+  }
+  console.log("encoderidx is " + encoderidx)
+
   if ("WebSocket" in window) {
     console.log("WebSocket is supported by your Browser!");
-    var ws = new WebSocket("ws://192.168.2.45:13400/stream/live?01","echo-protocol");
+    var ws = new WebSocket("ws://192.168.2.45:13400/stream/live?0" + encoderidx, "echo-protocol");
     ws.onopen = function() {
       console.log("Connection created");
       ws.binaryType = 'arraybuffer';
@@ -351,7 +361,7 @@ function webSocketInvoke()
       document.getElementById('hostname').innerHTML = blob.platform.host;
       document.getElementById('processid').innerHTML = blob.platform.pid;
       document.getElementById('cpupct').innerHTML = blob.platform.cpu_pct + '%';
-      document.getElementById('temperature').innerHTML = blob.platform.temperature + ' degC';
+      document.getElementById('temperature').innerHTML = blob.platform.temperature + ' c';
       document.getElementById('signalformat').innerHTML = blob.signal.format;
       document.getElementById('los_time').innerHTML = iso8601_to_str(blob.signal.los_time);
       document.getElementById('acq_time').innerHTML = iso8601_to_str(blob.signal.acq_time);
@@ -403,7 +413,19 @@ function webSocketInvoke()
       processAudio(15, blob.a15_level, blob.a15_type);
       processAudio(16, blob.a16_level, blob.a16_type);
       
-      updateBitrateData(br_data, br, blob.now.substring(11, 19));
+      
+      // Old mechanism just pushed a BR into the graph per second.
+      //updateBitrateData(br_data, br, blob.now.substring(11, 19));
+
+      // Push the entire history into the graph.
+      let x = new Date();
+      for (let i = 60; i > 0; i--) {
+        d = new Date(x - (i * 1000));
+        let ds = d.toISOString();
+        var br = parseInt(blob.output.br_history[i - 1]) / 1000000;
+        updateBitrateData(br_data, br, ds.substring(11, 19));
+      }
+
       //updateCCData(cc_data, blob.stats.ccerrors, blob.timestamp.substring(11, 19));
       //updateIATData(iat_data, blob.stats.iat1_max, blob.timestamp.substring(11, 19), blob.stats.nic);
 

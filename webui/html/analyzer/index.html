@@ -5,7 +5,9 @@
  <script type="text/javascript" src="index.js"></script>
  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+ <!--
  <script src="mpegts.js"></script>
+-->
  <style>
 .alert {
   margin-bottom: 1px;
@@ -45,14 +47,15 @@
     <div class="panel panel-primary">
       <div class="panel-heading">
         <div class="row">
-          <div class="col-4"><h2 align="center">LTN Encoder - Operational Statistics</h2></div>
+          <div class="col-4"><h2 align="center">LTN Encoder - Operational Status</h2></div>
         </div>
       </div>
 
       <div class="panel-body">
         <div class="row">
-        <table class="table table-striped">
-          <tbody>
+          <table class="table table-striped">
+            <p align=center>Encoders [ <a href="/analyzer/index.html?idx=1">e1</a> | <a href="/analyzer/index.html?idx=2">e2</a> | <a href="/analyzer/index.html?idx=3">e3</a> | <a href="/analyzer/index.html?idx=4">e4</a> | <a href="/analyzer/index.html?idx=5">e5</a> | <a href="/analyzer/index.html?idx=6">e6</a> | <a href="/analyzer/index.html?idx=7">e7</a> | <a href="/analyzer/index.html?idx=8">e8</a> ]</p>
+            <tbody>
             <tr><td>Encoder</td><td id="uuid">-</td><td>CPU</td><td id="cpupct">-</td><td>Start time</td><td id="starttime">-</td></tr>
             <tr><td>Platform</td><td id=model>-</td><td>RAM</td><td id="memused">-</td><td>Runtime</td><td id="runtime">-</td></tr>
             <tr><td>Stream</td><td id=dstname></td><td>Root / Storage free</td><td id="hdfreespace">-</td><td>Process Id</td><td id="processid">-</td></tr>
