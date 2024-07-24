@@ -117,7 +117,9 @@ typedef struct
         /* Detected signals during probe */
         API_VEGA3311_CAPTURE_FORMAT_T detectedFormat;
 
+        int interlacedTFF;
 } vega_ctx_t;
+
 void vega_sei_init(vega_ctx_t *ctx);
 void vega_sei_lock(vega_ctx_t *ctx);
 void vega_sei_unlock(vega_ctx_t *ctx);

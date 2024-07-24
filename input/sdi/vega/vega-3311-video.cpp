@@ -352,7 +352,7 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
                         return;
                 }
         }
-        
+
         if (ctx->bLastFrame) {
                 /* Encoder wants to shut down */
                 return;
@@ -1095,6 +1095,9 @@ VEGA_BQB_ENC_MakeAVCInitParam
         }
         ctx->init_params.eOutputFmt = API_VEGA_BQB_STREAM_OUTPUT_FORMAT_ES;
         ctx->init_params.tAvcParam.eGopType = API_VEGA_BQB_GOP_IP;
+        ctx->init_params.tAvcParam.bInterlace = opts->codec.interlaced;
+        ctx->interlacedTFF = 1; /* SDI is TOP field first (except 480i)*/
+        
         fprintf(stderr, MODULE_PREFIX "CALLED MACRO TO CONFIGURE AVC\n");
 
         ctx->init_params.tAvcParam.eInputMode       = API_VEGA_BQB_INPUT_MODE_DATA;  /* Source data from Host */
