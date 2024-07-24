@@ -992,7 +992,7 @@ API_VEGA_BQB_FPS_60,
         }
 
         if (VEGA_BQB_ENC_IsDeviceModeConfigurable((API_VEGA_BQB_DEVICE_E)opts->brd_idx)) {
-                fprintf(stderr, "DEVICE MODE IS CONFIGURABLE\n");
+                fprintf(stderr, "DEVICE MODE IS CONFIGURABLE (HEVC)\n");
                 API_VEGA_BQB_ENCODE_CONFIG_T encode_config;
                 memset(&encode_config, 0, sizeof(API_VEGA_BQB_ENCODE_CONFIG_T));
                 switch (ctx->init_params.tHevcParam.eResolution) {
@@ -1091,7 +1091,7 @@ VEGA_BQB_ENC_MakeAVCInitParam
         }
 
         if (VEGA_BQB_ENC_IsDeviceModeConfigurable((API_VEGA_BQB_DEVICE_E)opts->brd_idx)) {
-                fprintf(stderr, "DEVICE MODE IS CONFIGURABLE\n");
+                fprintf(stderr, "DEVICE MODE IS CONFIGURABLE (AVC)\n");
                 API_VEGA_BQB_ENCODE_CONFIG_T encode_config;
                 memset(&encode_config, 0, sizeof(API_VEGA_BQB_ENCODE_CONFIG_T));
                 switch (ctx->init_params.tAvcParam.eResolution) {
