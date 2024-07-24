@@ -778,6 +778,9 @@ int vega3311_video_configure_hevc(vega_opts_t *opts)
 
 	vega_ctx_t *ctx = &opts->ctx;
 
+        /* TODO: Migrate all of this hard-coded struct access stuff into the
+         * formal settings macros.
+         */
 // API_VENC_INIT_PARAM_T
         ctx->init_params.eCodecType             = API_VEGA_BQB_CODEC_TYPE_HEVC;
         ctx->init_params.eOutputFmt             = API_VEGA_BQB_STREAM_OUTPUT_FORMAT_ES;
