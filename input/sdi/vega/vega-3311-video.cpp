@@ -1043,39 +1043,6 @@ API_VEGA_BQB_FPS_60,
 
 int vega3311_video_configure_avc(vega_opts_t *opts)
 {
-
-/**
-@brief Creates a API_VEGA_BQB_INIT_PARAM_T structure for H.264 encode.
-
-The \b VEGA_BQB_ENC_MakeAVCInitParam function helps user to create a VEGA331X init parameter, which can be used to initialize the 1-1 AVC encoder.
-
-@param pApiInitParam    pointer to init parameter to be set; provided by caller.
-@param eProfile         profile value.
-@param eLevel           level value
-@param eResolution      resolution value.
-@param eChromaFmt       chroma format.
-@param eBitDepth        bit depth.
-@param eTargetFrameRate frame rate value.
-@param u32Bitrate       bitrate value in kbps. 0 < u32Bitrate <= API_MAX_BITRATE.
-@param u32CpbDelay      CPB delay value.
-@return
-- API_VEGA_BQB_RET_SUCCESS: Successful
-- API_VEGA_BQB_RET_FAIL: Failed
-*/
-LIBVEGA_BQB_API API_VEGA_BQB_RET
-VEGA_BQB_ENC_MakeAVCInitParam
-(
-        API_VEGA_BQB_INIT_PARAM_T      *pApiInitParam,
-  const API_VEGA_BQB_AVC_PROFILE_E      eProfile,
-  const API_VEGA_BQB_AVC_LEVEL_E        eLevel,
-  const API_VEGA_BQB_RESOLUTION_E       eResolution,
-  const API_VEGA_BQB_CHROMA_FORMAT_E    eChromaFmt,
-  const API_VEGA_BQB_BIT_DEPTH_E        eBitDepth,
-  const API_VEGA_BQB_FPS_E              eTargetFrameRate,
-  const uint32_t                        u32Bitrate,
-  const uint32_t                        u32CpbDelay
-);
-
 	printf(MODULE_PREFIX "%s()\n", __func__);
 
 	vega_ctx_t *ctx = &opts->ctx;
