@@ -334,6 +334,25 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
         printf(MODULE_PREFIX "%s() recd raw video frame\n", __func__);
 #endif
 
+        ctx->framecount++;
+
+        /* ST 274M-2008 Sec 5.5:
+         * "The first field shall convey 540 active lines, starting with the top picture line of the frame.
+         * The second field shall convey 540 active picture lines, ending with the bottom picture line of the frame."
+         * 
+         * 480i, if we ever supported that, would likely be BFF.
+         */
+        if (st_input_info->bSourceSdiInterlace && ctx->framecount == 1) {
+                if (ctx->interlacedTFF && st_input_info->bSourceSdiFieldTop == 0) {
+                        printf(MODULE_PREFIX "First field is BOTTOM and we need TOP, dropping frame\n");
+                        return;
+                }
+                if (ctx->interlacedTFF == 0 && st_input_info->bSourceSdiFieldTop == 1) {
+                        printf(MODULE_PREFIX "First field is TOP and we need BOTTOM, dropping frame\n");
+                        return;
+                }
+        }
+        
         if (ctx->bLastFrame) {
                 /* Encoder wants to shut down */
                 return;
@@ -380,8 +399,6 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
          //       sem_post(&cb_param_p->capture_sem);
         //        printf("vega processed last frame\n");
         }
-
-        ctx->framecount++;
 
 #if 0
 	static time_t last_report = 0;
