@@ -81,7 +81,7 @@ typedef struct
         API_VEGA_BQB_INIT_PARAM_T init_paramsMACROULL;   /* TODO fix this during confirmance checking */
         API_VEGA3311_CAP_INIT_PARAM_T ch_init_param;
 
-        uint32_t framecount;
+        uint64_t framecount;
         int bLastFrame;
 
         /* VANC Handling, attached the klvanc library for processing and parsing. */

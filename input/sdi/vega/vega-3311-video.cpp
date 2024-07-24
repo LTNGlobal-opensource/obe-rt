@@ -401,7 +401,7 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
                 int r = stat(tf, &s);
                 if (r == 0) {
                         char fn[64];
-                        sprintf(fn, "/tmp/%08d-vega-capture-input-port%d.bin", ctx->framecount, opts->card_idx);
+                        sprintf(fn, "/tmp/%08" PRIu64 "-vega-capture-input-port%d.bin", ctx->framecount, opts->card_idx);
                         FILE *fh = fopen(fn, "wb");
                         if (fh) {
                                 fwrite(st_frame_info->u8pDataBuf, 1, st_frame_info->u32BufSize, fh);
@@ -627,7 +627,7 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
                 int r = stat(tf, &s);
                 if (r == 0) {
                         char fn[64];
-                        sprintf(fn, "/tmp/%08d-vega-capture-output-port%d.bin", ctx->framecount, opts->card_idx);
+                        sprintf(fn, "/tmp/%08" PRIu64 "-vega-capture-output-port%d.bin", ctx->framecount, opts->card_idx);
                         FILE *fh = fopen(fn, "wb");
                         if (fh) {
                                 fwrite(img.pu8Addr, 1, img.u32Size, fh);
