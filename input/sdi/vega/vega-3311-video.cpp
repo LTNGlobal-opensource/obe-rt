@@ -1110,10 +1110,10 @@ int vega3311_video_configure_avc(vega_opts_t *opts)
         return 0; /* success */
 }
 
+#if 0
 int vega3311_video_configure_avc2(vega_opts_t *opts)
 {
 	printf(MODULE_PREFIX "%s()\n", __func__);
-return -1;
 
 	vega_ctx_t *ctx = &opts->ctx;
 
@@ -1192,5 +1192,6 @@ return -1;
 
         return 0; /* success */
 }
+#endif
 
 #endif /* #if HAVE_VEGA3311_CAP_TYPES_H */
