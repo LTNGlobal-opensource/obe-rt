@@ -4,6 +4,6 @@
 #include <stdio.h>
 #include <pthread.h>
 
-int obe_http_post(char *msg);
+int obe_http_post(const char *msg);
 
 #endif /* OBE_HTTP_H */

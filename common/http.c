@@ -5,7 +5,9 @@
 
 #include <curl/curl.h>
 
-int obe_http_post(char *msg)
+char g_stats_http_push_address[128] = { 0 }; // "http://127.0.0.1:13300/nicmonitor/01"
+
+int obe_http_post(const char *msg)
 {
 	int ret = -1;
 
@@ -21,7 +23,7 @@ int obe_http_post(char *msg)
 	headers = curl_slist_append(headers, "Content-Type: application/json");
 	headers = curl_slist_append(headers, "charset: utf-8");
 
-	curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:13300/nicmonitor/01");
+	curl_easy_setopt(curl, CURLOPT_URL, g_stats_http_push_address);
 	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
 	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, msg);
