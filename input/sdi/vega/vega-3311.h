@@ -82,7 +82,9 @@ typedef struct
         API_VEGA3311_CAP_INIT_PARAM_T ch_init_param;
 
         uint64_t framecount;
-        int bLastFrame;
+        int bDoLastFrame;
+        int bLastFramePushed;
+        pthread_mutex_t bDoLastFrame_lock;
 
         /* VANC Handling, attached the klvanc library for processing and parsing. */
         struct klvanc_context_s *vanchdl;
