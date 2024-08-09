@@ -128,7 +128,7 @@ void vega3311_video_avc_compressed_callback(API_VEGA_BQB_AVC_CODED_PICT_T *p_pic
         printf(MODULE_PREFIX "%s() recd AVC es video frames\n", __func__);
 #endif
 
-        if (ctx->bLastFrame) {
+        if (ctx->bDoLastFrame) {
                 /* Encoder wants to shut down */
                 return;
         }
@@ -228,7 +228,7 @@ void vega3311_video_hevc_compressed_callback(API_VEGA_BQB_HEVC_CODED_PICT_T *p_p
         printf(MODULE_PREFIX "%s() recd HEVC es video frames\n", __func__);
 #endif
 
-        if (ctx->bLastFrame) {
+        if (ctx->bDoLastFrame) {
                 /* Encoder wants to shut down */
                 return;
         }
@@ -333,6 +333,8 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
 #if LOCAL_DEBUG
         printf(MODULE_PREFIX "%s() recd raw video frame\n", __func__);
 #endif
+
+        pthread_mutex_lock(&ctx->bDoLastFrame_lock);
 
         ctx->framecount++;
 
@@ -616,7 +618,7 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
         img.eFormat     = opts->codec.eFormat;
         img.pts         = pcr / 300LL;
         img.eTimeBase   = API_VEGA_BQB_TIMEBASE_90KHZ;
-        img.bLastFrame  = ctx->bLastFrame;
+        img.bLastFrame  = ctx->bDoLastFrame;
         img.u32SeiNum   = 0;
 
         if (g_sei_timestamping) {
@@ -770,6 +772,10 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
 #endif
         }
 
+        if (ctx->bDoLastFrame) {
+                ctx->bLastFramePushed = true;
+        }
+        pthread_mutex_unlock(&ctx->bDoLastFrame_lock);
 }
 
 int vega3311_video_configure_hevc(vega_opts_t *opts)

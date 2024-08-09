@@ -131,7 +131,7 @@ void vega3311_audio_callback(uint32_t u32DevId,
         vega_opts_t *opts = (vega_opts_t *)pv_user_arg;
 	vega_ctx_t *ctx = &opts->ctx;
 
-        if (ctx->bLastFrame) {
+        if (ctx->bDoLastFrame) {
                 /* Encoder wants to shut down */
                 return;
         }

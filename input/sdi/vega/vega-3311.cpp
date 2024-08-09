@@ -233,13 +233,35 @@ static void close_device(vega_opts_t *opts)
 	printf(MODULE_PREFIX "Closing device#%d port#%d\n", opts->brd_idx, opts->card_idx);
 
         /* Stop all of the hardware */
-        ctx->bLastFrame = true;
+        pthread_mutex_lock(&ctx->bDoLastFrame_lock);
+        ctx->bDoLastFrame = true;
+        pthread_mutex_unlock(&ctx->bDoLastFrame_lock);
 
 	VEGA3311_CAP_Stop(opts->brd_idx, (API_VEGA3311_CAP_CHN_E)opts->card_idx, API_VEGA3311_CAP_MEDIA_TYPE_VIDEO);
 	VEGA3311_CAP_Stop(opts->brd_idx, (API_VEGA3311_CAP_CHN_E)opts->card_idx, API_VEGA3311_CAP_MEDIA_TYPE_AUDIO);
         VEGA3311_CAP_Stop(opts->brd_idx, (API_VEGA3311_CAP_CHN_E)opts->card_idx, API_VEGA3311_CAP_MEDIA_TYPE_ANC_DATA);
-        VEGA_BQB_ENC_Stop((API_VEGA_BQB_DEVICE_E)opts->brd_idx, (API_VEGA_BQB_CHN_E)opts->card_idx);
-        sleep(2);
+
+        for (;;) {
+                int ret = VEGA_BQB_ENC_Stop((API_VEGA_BQB_DEVICE_E)opts->brd_idx, (API_VEGA_BQB_CHN_E)opts->card_idx);
+                printf("ret %d, bDoLastFrame %d bLastFramePushed %d\n", ret, ctx->bDoLastFrame, ctx->bLastFramePushed);
+                if (ret == API_VEGA_BQB_RET_FAIL) {
+                        printf("API fail, probably ok\n");
+                        break;
+                }
+                if (ret == API_VEGA_BQB_RET_NO_LAST_FRAME) {
+                        printf("LAST FRAME not yet being pushed!\n");
+                }
+                if (ret == API_VEGA_BQB_RET_NO_LAST_ES) {
+                        printf("LAST ES not yet being popped!\n");
+                }
+                if (ret == API_VEGA_BQB_RET_SUCCESS) {
+                        printf("Stop was a success\n");
+                        break;
+                }
+                usleep(100 * 1000);
+        }
+//        VEGA_BQB_ENC_Stop((API_VEGA_BQB_DEVICE_E)opts->brd_idx, (API_VEGA_BQB_CHN_E)opts->card_idx);
+//        sleep(2);
 
 	VEGA_BQB_ENC_Exit((API_VEGA_BQB_DEVICE_E)opts->brd_idx, (API_VEGA_BQB_CHN_E)opts->card_idx);
 	VEGA3311_CAP_Exit(opts->brd_idx, (API_VEGA3311_CAP_CHN_E)opts->card_idx);
@@ -773,6 +795,7 @@ static void *vega_open_input(void *ptr)
 	ctx->device = device;
 	ctx->h      = h;
         vega_sei_init(ctx);
+        pthread_mutex_init(&ctx->bDoLastFrame_lock, NULL);
 
         non_display_parser = &ctx->non_display_parser;
         non_display_parser->device = device;
