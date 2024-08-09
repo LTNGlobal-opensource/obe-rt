@@ -3297,7 +3297,21 @@ static void *runtime_statistics_thread(void *p)
 
         json_object *j = json_object_new_object();
 
-        json_object_object_add(j, "uuid", json_object_new_string("ltnt-nyc-stevenlab-prod1-e1"));
+        switch(g_device_input_port[0]) {
+        default:
+        case 'A':
+            json_object_object_add(j, "uuid", json_object_new_string("ltnt-nyc-stevenlab-prod1-e1"));
+            break;
+        case 'B':
+            json_object_object_add(j, "uuid", json_object_new_string("ltnt-nyc-stevenlab-prod1-e3"));
+            break;
+        case 'C':
+            json_object_object_add(j, "uuid", json_object_new_string("ltnt-nyc-stevenlab-prod1-e2"));
+            break;
+        case 'D':
+            json_object_object_add(j, "uuid", json_object_new_string("ltnt-nyc-stevenlab-prod1-e4"));
+            break;
+        }
 
         char timestamp[64];
         getISO8601(NULL, &timestamp[0]);
