@@ -1194,6 +1194,8 @@ extern int g_audio_channel_type[32]; /* 0 = undefined, 1 = pcm, 2 = bitstream */
                 g_audio_channel_level_dbfs[i] = 0.0;
             }
         }
+        ltnsdi_status_free(decklink_ctx->sdi_audio_analyzer_ctx, astatus);
+        astatus = NULL;
     }
 
 	return hr;
