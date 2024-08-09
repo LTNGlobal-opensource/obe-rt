@@ -3481,7 +3481,7 @@ static void *runtime_statistics_thread(void *p)
         }
 #endif
         if (obe_http_post(resp_str) < 0) {
-            fprintf(stderr, MODULE_PREFIX "Failed to transmit stats\n");
+            //fprintf(stderr, MODULE_PREFIX "Failed to transmit stats\n");
         }
 
         json_object_put(j); /* Free all the json objects */
