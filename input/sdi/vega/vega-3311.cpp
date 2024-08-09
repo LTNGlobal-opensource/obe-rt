@@ -279,6 +279,10 @@ static void close_device(vega_opts_t *opts)
                 ctx->smpte2038_ctx = 0;
         }
 
+        if (ctx->fc_ctx) {
+                filter_compress_free(ctx->fc_ctx);
+        }
+
 	printf(MODULE_PREFIX "Closed card idx #%d\n", opts->card_idx);
 }
 

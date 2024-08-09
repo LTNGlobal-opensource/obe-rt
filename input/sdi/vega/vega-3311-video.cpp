@@ -44,6 +44,9 @@ extern "C"
 #include <libklscte35/scte35.h>
 }
 
+extern int g_filter_video_fullsize_jpg;
+extern char g_filter_video_fullsize_jpg_filename[256];
+
 #define LOCAL_DEBUG 0
 
 #define MODULE_PREFIX "[vega-video]: "
@@ -320,6 +323,112 @@ void vega3311_video_hevc_compressed_callback(API_VEGA_BQB_HEVC_CODED_PICT_T *p_p
 
 }
 
+/* Once per second, take a frame, scale it down to 640x360 and produce a jpeg.
+ * We'll do the scaling on this thread, and the compression to jpeg on a deferred worker thread.
+ */
+static void create_snapshot(vega_ctx_t *ctx, vega_opts_t *opts,
+        uint32_t u32DevId,
+        API_VEGA3311_CAP_CHN_E eCh,
+        API_VEGA3311_CAPTURE_FRAME_INFO_T *st_frame_info,
+        API_VEGA3311_CAPTURE_FORMAT_T *st_input_info)
+{
+        static time_t lastSnapshot = 0;
+        time_t now = time(0);
+
+        if (now == lastSnapshot) {
+                return;
+        }
+
+#if 0
+        /* All 10bit formats we receive in the same format */
+        if (opts->codec.pixelFormat == API_VEGA3311_CAP_IMAGE_FORMAT_Y210)
+        {
+                /* if 3840x2160 then we want every 6 pixels = 640x320 */
+                /* if 1920x1080 then we want every 3 pixels = 640x320 */
+                /* if 1280x 720 then we want every 2 pixels = 640x320 */
+                int scale_factor = 6; /* hard coded for 1920x1080 */
+
+                /* We need to measure how long this takes. */
+
+                /*  len as expressed in bytes. No stride */
+                int ylen = (opts->width * opts->height);
+                int ulen = ylen / 2;
+                int vlen = ulen;
+                int dstlen = ylen + ulen + vlen;
+                //printf("ylen %d ulen %d vlen %d\n", ylen, ulen, vlen);
+
+                uint8_t *dst[5] = { 0, 0, 0, 0, 0 };
+
+                /* TODO: Move this malloc into a startup list of mallocs and don't be expensive */
+                dst[0] = (uint8_t *)calloc(1, ylen); /* Y - Primary plane - 4:2:2 */
+                dst[1] = (uint8_t *)calloc(1, ulen); /* U - Primary plane - 4:2:2 */
+                dst[2] = (uint8_t *)calloc(1, vlen); /* V - Primary plane - 4:2:2 */
+                dst[3] = (uint8_t *)calloc(1, ulen / 2); /* U - Primary plane - 4:2:0 */
+                dst[4] = (uint8_t *)calloc(1, vlen / 2); /* V - Primary plane - 4:2:0 */
+
+                /* Unpack all of the 16 bit Y/U/Y/V words, shift to correct for padding and write new planes */
+                uint8_t *wy = dst[0];
+		uint8_t *wu = dst[1];
+		uint8_t *wv = dst[2];
+                uint16_t *p = (uint16_t *)&st_frame_info->u8pDataBuf[0];
+
+                /* Convert 4:2:2/10 packed to 4:2:2/planer/8 */
+                for (int i = 0 ; i < opts->width * opts->height; i += 2) {
+			uint16_t y0, y1;
+			uint16_t u, v;
+                        /* 0    1    2    3    4    5    6    7    8    9    10    11    12 */
+                        /* Y Cr Y Cb Y Cr Y Cb Y Cr Y Cb Y Cr Y Cb Y Cr Y Cb  Y Cr  Y Cb  Y Cr Y Cb Y Cr Y Cb */
+			y0 = *(p++) >> 6; /* first luma */
+			u = *(p++) >> 6;  /* First Cr */
+			y1 = *(p++) >> 6; /* 6th luma */
+			v = *(p++) >> 6;  /* first Cb */
+
+                        /* Twelve pixels sampled, output 2 luma and 1 chroma  */
+			*(wy++) = y0;
+			*(wy++) = y1;
+			*(wu++) = v;
+			*(wv++) = u;
+                }
+
+                /* Convert 4:2:2/planer/8 into 4:2:0/planer/8*/
+                uint8_t *du = dst[3];
+                uint8_t *dv = dst[4];
+                int wdiv2 = opts->width / 2;
+                for (int j = 0 ; j < opts->height; j += 2) {
+                        uint8_t *su = dst[1] + (j * wdiv2);
+                        uint8_t *sv = dst[2] + (j * wdiv2);
+                        memcpy(du, su, wdiv2);
+                        memcpy(dv, sv, wdiv2);
+                        du += wdiv2;
+                        dv += wdiv2;
+                }
+
+                obe_raw_frame_t rf;
+                rf.img.width = 1920;
+                rf.img.height = 1080;
+                rf.img.plane[0] = dst[0];
+                rf.img.plane[1] = dst[1];
+                rf.img.plane[2] = dst[2];
+
+                /* Allocate the thumbnailer on the fly, during runtime. */
+                if (g_filter_video_fullsize_jpg) {
+                        if (ctx->fc_ctx == NULL) {
+                                filter_compress_alloc(&ctx->fc_ctx, g_filter_video_fullsize_jpg_filename);
+                        } else {
+                                filter_compress_jpg(ctx->fc_ctx, &rf);
+                        }
+                }
+                free(dst[0]);
+                free(dst[1]);
+                free(dst[2]);
+                free(dst[3]);
+                free(dst[4]);
+        }
+#endif
+        lastSnapshot = now;
+}
+
+
 /* Callback from the video capture device, we're handed a raw frame */
 void vega3311_video_capture_callback(uint32_t u32DevId,
         API_VEGA3311_CAP_CHN_E eCh,
@@ -355,10 +464,12 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
                 }
         }
 
-        if (ctx->bLastFrame) {
+        if (ctx->bLastFramePushed) {
                 /* Encoder wants to shut down */
                 return;
         }
+
+        create_snapshot(ctx, opts, u32DevId, eCh, st_frame_info, st_input_info);
 
         API_VEGA_BQB_IMG_T img;
         int64_t pcr = st_input_info->tCurrentPCR.u64Dword;

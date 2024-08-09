@@ -19,6 +19,7 @@ extern "C"
 #include <libswresample/swresample.h>
 #include <libavutil/opt.h>
 #include <encoders/video/sei-timestamp.h>
+#include "filters/video/convert.h"
 }
 
 #define MAX_VEGA_AUDIO_CHANNELS 16
@@ -120,6 +121,11 @@ typedef struct
         API_VEGA3311_CAPTURE_FORMAT_T detectedFormat;
 
         int interlacedTFF;
+        
+        /* JPEG thumbnailing */
+        struct filter_compress_ctx *fc_ctx = NULL;
+        time_t lastJPG = 0;
+
 } vega_ctx_t;
 
 void vega_sei_init(vega_ctx_t *ctx);
