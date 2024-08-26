@@ -1494,6 +1494,7 @@ extern int g_decklink_monitor_hw_clocks;
 extern int g_decklink_histogram_reset;
 extern int g_decklink_histogram_print_secs;
 extern int g_decklink_render_walltime;
+extern int g_decklink_render_timecode;
 extern int g_decklink_inject_scte104_preroll6000;
 extern int g_decklink_inject_scte104_fragmented;
 extern int g_decklink_udp_vanc_receiver_port;
@@ -1620,6 +1621,9 @@ extern time_t g_decklink_missing_video_last_time;
         g_decklink_burnwriter_enable,
         g_decklink_burnwriter_enable == 0 ? "disabled" : "enabled");
     printf("sdi_input.burnwriter_linenr = %d\n", g_decklink_burnwriter_linenr);
+    printf("sdi_input.inject_timecode = %d [%s]\n",
+        g_decklink_render_timecode,
+        g_decklink_render_timecode == 0 ? "disabled" : "enabled");
     printf("sdi_input.inject_walltime = %d [%s]\n",
         g_decklink_render_walltime,
         g_decklink_render_walltime == 0 ? "disabled" : "enabled");
@@ -1855,6 +1859,9 @@ static int set_variable(char *command, obecli_command_t *child)
     } else
     if (strcasecmp(var, "sdi_input.inject_walltime") == 0) {
         g_decklink_render_walltime = val;
+    } else
+    if (strcasecmp(var, "sdi_input.inject_timecode") == 0) {
+        g_decklink_render_timecode = val;
     } else
     if (strcasecmp(var, "sdi_input.inject_scte104_preroll6000") == 0) {
         g_decklink_inject_scte104_preroll6000 = val;

@@ -258,6 +258,16 @@ typedef struct
     struct avmetadata_s metadataVANC;
 
     struct ltnsdi_context_s *sdi_audio_analyzer_ctx;
+
+    struct {
+        uint8_t hours;
+        uint8_t minutes;
+        uint8_t seconds;
+        uint8_t frames;
+        int32_t drop_frame;
+        int32_t present;
+    } timecode;
+
 } decklink_ctx_t;
 
 typedef struct
@@ -1055,6 +1065,7 @@ time_t        g_decklink_missing_video_last_time = 0;
 int           g_decklink_record_audio_buffers = 0;
 
 int           g_decklink_render_walltime = 0;
+int           g_decklink_render_timecode = 0;
 int           g_decklink_inject_scte104_preroll6000 = 0;
 int           g_decklink_inject_scte104_fragmented = 0;
 
@@ -1201,6 +1212,54 @@ extern int g_audio_channel_type[32]; /* 0 = undefined, 1 = pcm, 2 = bitstream */
 	return hr;
 }
 
+static void extractTimecode(decklink_ctx_t *decklink_ctx, IDeckLinkVideoInputFrame *videoframe)
+{
+        decklink_ctx_t *ctx = decklink_ctx;
+
+        /* Timecode handling */
+        IDeckLinkTimecode *timecode;
+        BMDTimecodeFormat tcf = bmdTimecodeRP188Any;
+#if 0
+        BMDTimecodeFormat tcf = bmdTimecodeRP188VITC1;
+        BMDTimecodeFormat tcf = bmdTimecodeRP188VITC2;
+        BMDTimecodeFormat tcf = bmdTimecodeRP188LTC;
+        BMDTimecodeFormat tcf = bmdTimecodeRP188Any;
+        BMDTimecodeFormat tcf = bmdTimecodeVITC;
+        BMDTimecodeFormat tcf = bmdTimecodeVITCField2;
+        BMDTimecodeFormat tcf = bmdTimecodeSerial;
+#endif
+
+        memset(&ctx->timecode, 0, sizeof(ctx->timecode));
+
+        if (videoframe->GetTimecode(tcf, &timecode) == S_OK) {
+            ctx->timecode.present = 1;
+            if (timecode->GetComponents(&ctx->timecode.hours, &ctx->timecode.minutes, &ctx->timecode.seconds, &ctx->timecode.frames) == S_OK) {
+
+                /* Comments: https://www.reddit.com/r/VIDEOENGINEERING/comments/1b946x0/timecode_for_5994fps/
+                    * timecode when frame counts exceed 30fps, Mark bit with repeated time.
+                    */
+                if (timecode->GetFlags() & bmdTimecodeIsDropFrame) {
+                    ctx->timecode.drop_frame = 1;
+                } else {
+                    ctx->timecode.drop_frame = 0;
+                }
+
+                if (g_timecode_debug) {
+                    printf("sdi timecode: %02d:%02d:%02d%s%02d\n",
+                        ctx->timecode.hours, ctx->timecode.minutes, ctx->timecode.seconds,
+                        ctx->timecode.drop_frame ? ";" : ":",
+                        ctx->timecode.frames);
+                }
+            }
+            timecode->Release();
+
+        } else {
+            //fprintf(stderr, PREFIX "No timecode available\n");
+        }
+        /* End - Timecode handling */
+
+}
+
 HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInputFrame *videoframe, IDeckLinkAudioInputPacket *audioframe )
 {
     decklink_ctx_t *decklink_ctx = &decklink_opts_->decklink_ctx;
@@ -1281,6 +1340,8 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
         width = videoframe->GetWidth();
         height = videoframe->GetHeight();
         stride = videoframe->GetRowBytes();
+
+        extractTimecode(decklink_ctx, videoframe);
 
 #if LTN_WS_ENABLE
 	ltn_ws_set_property_signal(g_ltn_ws_handle, width, height, 1 /* progressive */, 5994);
@@ -1505,6 +1566,21 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
         char ts[64];
         obe_getTimestamp(ts, NULL);
         V210_painter_draw_ascii_at(&painter, 0, 2, ts);
+    }
+    if (g_decklink_render_timecode && videoframe) {
+        /* Demonstrate V210 writes into the video packet format. */
+        /* Tested with 720p and 1080i */
+        videoframe->GetBytes(&frame_bytes);
+        struct V210_painter_s painter;
+        V210_painter_reset(&painter, (unsigned char *)frame_bytes, width, height, stride, 0);
+
+        char tc[64];
+        sprintf(tc, "sdi timecode: %02d:%02d:%02d.%02d",
+            decklink_ctx->timecode.hours,
+            decklink_ctx->timecode.minutes,
+            decklink_ctx->timecode.seconds,
+            decklink_ctx->timecode.frames);
+        V210_painter_draw_ascii_at(&painter, 0, 3, tc);
     }
     if (sfc && (sfc < decklink_opts_->audio_sfc_min || sfc > decklink_opts_->audio_sfc_max)) {
         if (videoframe && (videoframe->GetFlags() & bmdFrameHasNoInputSource) == 0) {
@@ -2037,58 +2113,15 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             if (g_decklink_inject_frame_enable)
                 cache_video_frame(raw_frame);
 
-            /* Timecode handling */
-            IDeckLinkTimecode *timecode;
-            BMDTimecodeFormat tcf = bmdTimecodeRP188Any;
-#if 0
-            BMDTimecodeFormat tcf = bmdTimecodeRP188VITC1;
-            BMDTimecodeFormat tcf = bmdTimecodeRP188VITC2;
-            BMDTimecodeFormat tcf = bmdTimecodeRP188LTC;
-            BMDTimecodeFormat tcf = bmdTimecodeRP188Any;
-            BMDTimecodeFormat tcf = bmdTimecodeVITC;
-            BMDTimecodeFormat tcf = bmdTimecodeVITCField2;
-            BMDTimecodeFormat tcf = bmdTimecodeSerial;
-#endif
-
-            raw_frame->timecode.present = 0;
-            raw_frame->timecode.hours = 0;
-            raw_frame->timecode.mins = 0;
-            raw_frame->timecode.seconds = 0;
-            raw_frame->timecode.frames = 0;
-            raw_frame->timecode.drop_frame = 0;
-
-            if (videoframe->GetTimecode(tcf, &timecode) == S_OK) {
+            /* Attach the timecode to the frame, if we have one */
+            if (decklink_ctx->timecode.present) {
                 raw_frame->timecode.present = 1;
-                uint8_t tc_hours, tc_minutes, tc_seconds, tc_frames;
-                if (timecode->GetComponents(&tc_hours, &tc_minutes, &tc_seconds, &tc_frames) == S_OK) {
-
-                    raw_frame->timecode.hours   = tc_hours;
-                    raw_frame->timecode.mins    = tc_minutes;
-                    raw_frame->timecode.seconds = tc_seconds;
-                    raw_frame->timecode.frames  = tc_frames;
-
-                    /* Comments: https://www.reddit.com/r/VIDEOENGINEERING/comments/1b946x0/timecode_for_5994fps/
-                     * timecode when frame counts exceed 30fps, Mark bit with repeated time.
-                     */
-                    if (timecode->GetFlags() & bmdTimecodeIsDropFrame) {
-                        raw_frame->timecode.drop_frame = 1;
-                    } else {
-                        raw_frame->timecode.drop_frame = 0;
-                    }
-
-                    if (g_timecode_debug) {
-                        printf("sdi timecode: %02d:%02d:%02d%s%02d\n",
-                            raw_frame->timecode.hours, raw_frame->timecode.mins, raw_frame->timecode.seconds,
-                            raw_frame->timecode.drop_frame ? ";" : ":",
-                            raw_frame->timecode.frames);
-                    }
-                }
-                timecode->Release();
-
-            } else {
-                //fprintf(stderr, PREFIX "No timecode available\n");
+                raw_frame->timecode.hours   = decklink_ctx->timecode.hours;
+                raw_frame->timecode.mins    = decklink_ctx->timecode.minutes;
+                raw_frame->timecode.seconds = decklink_ctx->timecode.seconds;
+                raw_frame->timecode.frames  = decklink_ctx->timecode.frames;
+                raw_frame->timecode.drop_frame = decklink_ctx->timecode.drop_frame;
             }
-            /* End - Timecode handling */
 
             /* Ensure we put any associated video vanc / metadata into this raw frame. */
             avmetadata_clone(&raw_frame->metadata, &decklink_ctx->metadataVANC);
