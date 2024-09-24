@@ -8,6 +8,7 @@
 #include <VEGA_BQB_types.h>
 #include <VEGA_BQB_encoder.h>
 #include <VEGA_BQB_version.h>
+#include <Processing.NDI.Lib.h>
 
 extern "C"
 {
@@ -21,6 +22,8 @@ extern "C"
 #include <encoders/video/sei-timestamp.h>
 #include "filters/video/convert.h"
 }
+
+#define VEGA_IS_SOURCING_NDI 0
 
 #define MAX_VEGA_AUDIO_CHANNELS 16
 #define MAX_VEGA_AUDIO_PAIRS (MAX_VEGA_AUDIO_CHANNELS / 2)
@@ -127,6 +130,25 @@ typedef struct
         struct filter_compress_ctx *fc_ctx = NULL;
         time_t lastJPG = 0;
 
+        /* NDI handling -- all managed through vega_ndi_calls, ... a bit of a kludge for now */
+        pthread_mutex_t  ndiLock;
+        pthread_t        ndiThreadId;
+        int              ndiThreadRunning, ndiThreadTerminate, ndiThreadTerminated;
+	const NDIlib_v3* p_NDILib;
+	NDIlib_recv_instance_t pNDI_recv;
+	AVRational       ndiTimebase;
+        int64_t          ndiLastPCR;
+        uint8_t         *ndiFrameBuffer;
+        uint32_t         ndiFrameBufferLength;
+        struct SwrContext *ndiAVR;
+        uint64_t         ndi_v_counter;
+	uint64_t         ndi_a_counter;
+       	int64_t	         ndi_clock_offset;
+        int              ndi_reset_a_pts;
+        //int              ndi_reset_v_pts;
+        int              ndi_audio_channel_count;
+        int              ndi_audio_sample_rate;
+
 } vega_ctx_t;
 
 void vega_sei_init(vega_ctx_t *ctx);
@@ -193,6 +215,9 @@ typedef struct
     int enable_allow_1080p60;
 #endif
 
+    /* NDI */
+    char *ndi_name;
+
 } vega_opts_t;
 
 void vega3311_vanc_callback(uint32_t u32DevId,
@@ -217,5 +242,8 @@ void vega3311_video_hevc_compressed_callback(API_VEGA_BQB_HEVC_CODED_PICT_T *p_p
 void vega3311_video_avc_compressed_callback(API_VEGA_BQB_AVC_CODED_PICT_T *p_pict, void *args);
 int  vega3311_video_configure_hevc(vega_opts_t *opts);
 int  vega3311_video_configure_avc(vega_opts_t *opts);
+
+int  vega_ndi_start(vega_opts_t *opts);
+void vega_ndi_stop(vega_opts_t *opts);
 
 #endif /* LTN_VEGA_H */

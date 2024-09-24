@@ -80,6 +80,10 @@
 #include "histogram.h"
 #include "vega-3311.h"
 
+#if VEGA_IS_SOURCING_NDI
+#pragma message "VEGA: NDI sourcing is enabled"
+#endif
+
 extern "C"
 {
 #include <libklvanc/vanc.h>
@@ -170,6 +174,9 @@ static int configureCodec(vega_opts_t *opts)
                 /* 4:2:0 8bit via NV12 */
                 printf(MODULE_PREFIX "Selecting 4:2:0 8bit via NV12\n");
                 opts->codec.chromaFormat = API_VEGA_BQB_CHROMA_FORMAT_420;
+#if VEGA_IS_SOURCING_NDI
+                opts->codec.chromaFormat = API_VEGA_BQB_CHROMA_FORMAT_422_TO_420;
+#endif
                 opts->codec.bitDepth     = API_VEGA_BQB_BIT_DEPTH_8;
                 opts->codec.pixelFormat  = API_VEGA3311_CAP_IMAGE_FORMAT_NV12;
                 opts->codec.eFormat      = API_VEGA_BQB_IMAGE_FORMAT_NV12;
@@ -237,11 +244,15 @@ static void close_device(vega_opts_t *opts)
         ctx->bDoLastFrame = true;
         pthread_mutex_unlock(&ctx->bDoLastFrame_lock);
 
+#if VEGA_IS_SOURCING_NDI
+        vega_ndi_stop(opts);
+#else
 	VEGA3311_CAP_Stop(opts->brd_idx, (API_VEGA3311_CAP_CHN_E)opts->card_idx, API_VEGA3311_CAP_MEDIA_TYPE_VIDEO);
 	VEGA3311_CAP_Stop(opts->brd_idx, (API_VEGA3311_CAP_CHN_E)opts->card_idx, API_VEGA3311_CAP_MEDIA_TYPE_AUDIO);
         VEGA3311_CAP_Stop(opts->brd_idx, (API_VEGA3311_CAP_CHN_E)opts->card_idx, API_VEGA3311_CAP_MEDIA_TYPE_ANC_DATA);
+#endif
 
-        for (;;) {
+        for (int i = 0; i < 30; i++) {
                 int ret = VEGA_BQB_ENC_Stop((API_VEGA_BQB_DEVICE_E)opts->brd_idx, (API_VEGA_BQB_CHN_E)opts->card_idx);
                 printf("ret %d, bDoLastFrame %d bLastFramePushed %d\n", ret, ctx->bDoLastFrame, ctx->bLastFramePushed);
                 if (ret == API_VEGA_BQB_RET_FAIL) {
@@ -555,14 +566,20 @@ static int open_device(vega_opts_t *opts, int probe)
                 return -1;
         }
 
-        printf(MODULE_PREFIX "Starting Capture Interface\n");
-
+#if VEGA_IS_SOURCING_NDI
+        /* Start a NDI interface for capture, instead of the VEGA SDI interface. */
+        printf(MODULE_PREFIX "Starting NDI Capture Interface\n");
+        vega_ndi_start(opts);
+#else
+        /* Start the VEGA SDI raw capture interface. */
+        printf(MODULE_PREFIX "Starting SDI Capture Interface\n");
         capret = VEGA3311_CAP_Start(opts->brd_idx, (API_VEGA3311_CAP_CHN_E)opts->card_idx,
                 API_VEGA3311_CAP_ENABLE_ON, API_VEGA3311_CAP_ENABLE_ON, API_VEGA3311_CAP_ENABLE_ON);
         if (capret != API_VEGA3311_CAP_RET_SUCCESS) {
                 fprintf(stderr, MODULE_PREFIX "ERROR: failed to cap start\n");
                 return -1;
         }
+#endif
 
         printf(MODULE_PREFIX "The vega encoder device#0 port%d was started\n", opts->card_idx);
 
