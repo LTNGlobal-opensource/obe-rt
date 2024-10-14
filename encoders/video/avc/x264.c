@@ -626,6 +626,8 @@ printf("param.rc.i_vbv_buffer_size = %d\n", param.rc.i_vbv_buffer_size);
 
     printf(MESSAGE_PREFIX "lookahead = %d\n", enc_params->avc_param.rc.i_lookahead);
     printf(MESSAGE_PREFIX "open_gop = %d\n", enc_params->avc_param.b_open_gop);
+    printf(MESSAGE_PREFIX "profile = %d\n", enc_params->avc_param.i_profile);
+    printf(MESSAGE_PREFIX "level_idc = %d\n", enc_params->avc_param.i_level_idc);
     x264_encoder_parameters( s, &enc_params->avc_param );
 
     encoder->encoder_params = malloc( sizeof(enc_params->avc_param) );
