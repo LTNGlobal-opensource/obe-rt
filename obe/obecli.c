@@ -764,7 +764,7 @@ static int set_stream( char *command, obecli_command_t *child )
 #if 1
         int oid = output_stream_id;
 
-        printf("OUTPUT STREAM ID for set ups %d\n", output_stream_id);
+        printf("OUTPUT STREAM ID for output_stream_id %d\n", output_stream_id);
 
         /* Enumerate all streams, looking for output_stream_id X in the array, don't assume
          * that it's in position X, because the array is modified by the 'remove stream' command.
