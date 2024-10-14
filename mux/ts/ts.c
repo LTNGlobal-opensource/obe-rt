@@ -287,6 +287,7 @@
 #define PREFIX "[Mux]: "
 
 int g_mux_audio_mp2_force_pmt_11172 = 0;
+int64_t g_mux_pcr_adjustment = 0;
 
 static const int mpegts_stream_info[][3] =
 {
@@ -697,7 +698,8 @@ void *open_muxer( void *ptr )
     ts_set_ve_version(w, h->sw_major, h->sw_minor, h->sw_patch);
 
     ts_set_section_padding(w, mux_opts->section_padding);
-
+    ts_setup_pcr_adjustment(w, g_mux_pcr_adjustment); /* Add Optional delay to a gold leaf mux PCR */
+    
     if( mux_opts->ts_type == OBE_TS_TYPE_GENERIC || mux_opts->ts_type == OBE_TS_TYPE_DVB )
     {
         if( ts_setup_sdt( w ) < 0 )

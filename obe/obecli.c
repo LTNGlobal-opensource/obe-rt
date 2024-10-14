@@ -81,6 +81,9 @@ void *g_ltn_ws_handle = NULL;
 
 extern int g_decklink_op47_teletext_reverse;
 
+/* TS Mux */
+extern int64_t g_mux_pcr_adjustment;
+
 char g_device_input_type[64]; /* decklink, ndi, etc */
 char g_device_input_port[128] = { 0 }; /* A, ndi://x.y.z, 0 */
 
@@ -893,12 +896,14 @@ static int set_stream( char *command, obecli_command_t *child )
                     video_codec_id = 10; /* HEVC_VEGA */
                     /* Enable SEI timestamping by default, for the code, but NOT for UDP output. */
                     g_sei_timestamping = 1;
+                    g_mux_pcr_adjustment = -300;
                 }
                 else
                 if (strcasecmp(video_codec, "AVC_VEGA3311") == 0) {
                     video_codec_id = 11; /* AVC_VEGA */
                     /* Enable SEI timestamping by default, for the code, but NOT for UDP output. */
                     g_sei_timestamping = 1;
+                    g_mux_pcr_adjustment = -300;
                 }
 #endif
 #if HAVE_X265_H
@@ -1716,6 +1721,7 @@ extern time_t g_decklink_missing_video_last_time;
     printf("ts_mux.monitor_bps = %d [%s]\n",
         g_mux_ts_monitor_bps,
         g_mux_ts_monitor_bps == 0 ? "disabled" : "enabled");
+    printf("ts_mux.pcr_adjustment  = %" PRIi64 " (ms)\n", g_mux_pcr_adjustment);
 
     printf("mux_smoother.last_item_count  = %" PRIi64 "\n",
         g_mux_smoother_last_item_count);
@@ -2019,6 +2025,9 @@ static int set_variable(char *command, obecli_command_t *child)
     } else
     if (strcasecmp(var, "ts_mux.monitor_bps") == 0) {
         g_mux_ts_monitor_bps = val;
+    } else
+    if (strcasecmp(var, "ts_mux.pcr_adjustment") == 0) {
+        g_mux_pcr_adjustment = val;
     } else
     if (strcasecmp(var, "video_encoder.sei_timestamping") == 0) {
         g_sei_timestamping = val;
