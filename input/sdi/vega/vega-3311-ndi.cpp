@@ -487,7 +487,8 @@ int vega_ndi_start(vega_opts_t *opts)
 	printf(MODULE_PREFIX "%s()\n", __func__);
 #endif
 
-        opts->ndi_name = strdup("LTN-DELL-5820 (vMix - Output 1) @ 192.168.20.243");
+        //opts->ndi_name = strdup("LTN-DELL-5820 (vMix - Output 1) @ 192.168.20.243");
+        opts->ndi_name = strdup("LTNT-COL-ALMATEST-A (outputstream) @ 10.90.132.170");
 
 	char extraIPS[256] = { 0 };
 	if (strstr(opts->ndi_name, " @ ") != NULL) {
@@ -558,7 +559,7 @@ int vega_ndi_start(vega_opts_t *opts)
 			return -1;
 		}
 		if (!ctx->p_NDILib->NDIlib_find_wait_for_sources(pNDI_find, 5000 /* ms */)) {
-			printf("No change to sources found\n");
+			printf(MODULE_PREFIX "awaiting sources to arrived, no change to sources found\n");
 			continue;
 		}
 		p_sources = ctx->p_NDILib->NDIlib_find_get_current_sources(pNDI_find, &sourceCount);
