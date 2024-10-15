@@ -161,4 +161,5 @@ noinst_HEADERS  = $(top_srcdir)/mux/mux.h
 deploy: all
 #	scp -P3999 obecli 192.168.2.76:/home/stoth/VEGA-3311
 #	scp -P3999 obecli 192.168.2.106:/home/ltn/ltn_encoder/stoth
-	scp -P3999 obecli 192.168.2.17:/home/ltn/ltn_encoder/stoth
+#	scp -P3999 obecli 192.168.2.17:/home/ltn/ltn_encoder/stoth
+	scp -P3999 obecli 192.168.130.160:/home/ltn/ltn_encoder/stoth
