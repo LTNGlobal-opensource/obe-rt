@@ -717,10 +717,10 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
                 //img.eFormat     = API_VEGA_BQB_IMAGE_FORMAT_NV12; /* 4:2:0 8bit */
         } else {
 
-//#if LOCAL_DEBUG
+#if LOCAL_DEBUG
         printf(MODULE_PREFIX "%s() dorc raw video frame, unsupported, opts->codec.eFormat = 0x%x\n", __func__, opts->codec.eFormat);
 //        return;
-//#endif
+#endif
                 img.pu8Addr     = st_frame_info->u8pDataBuf;
                 img.u32Size     = st_frame_info->u32BufSize;
                 img.eFormat     = API_VEGA_BQB_IMAGE_FORMAT_YUV420P010; /* 4:2:0 10bit */
