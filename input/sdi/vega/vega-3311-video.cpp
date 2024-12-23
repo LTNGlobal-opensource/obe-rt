@@ -1183,6 +1183,7 @@ int vega3311_video_configure_avc(vega_opts_t *opts)
         ctx->init_params.eOutputFmt = API_VEGA_BQB_STREAM_OUTPUT_FORMAT_ES;
         ctx->init_params.tAvcParam.eGopType = API_VEGA_BQB_GOP_IP;
         ctx->init_params.tAvcParam.bInterlace = opts->codec.interlaced;
+        ctx->init_params.tAvcParam.eGopSize = opts->codec.gop_size;
         ctx->interlacedTFF = 1; /* SDI is TOP field first (except 480i)*/
         
         fprintf(stderr, MODULE_PREFIX "CALLED MACRO TO CONFIGURE AVC\n");
