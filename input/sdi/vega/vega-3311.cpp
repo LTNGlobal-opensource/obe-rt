@@ -244,12 +244,25 @@ static void close_device(vega_opts_t *opts)
         ctx->bDoLastFrame = true;
         pthread_mutex_unlock(&ctx->bDoLastFrame_lock);
 
+        API_VEGA_BQB_STATUS_E status = VEGA_BQB_ENC_GetStatus((API_VEGA_BQB_DEVICE_E)opts->brd_idx, (API_VEGA_BQB_CHN_E)opts->card_idx);
+        printf(MODULE_PREFIX "Closing device#%d port#%d status = %s\n", opts->brd_idx, opts->card_idx, lookupVegaBQBState(status));
+
 #if VEGA_IS_SOURCING_NDI
         vega_ndi_stop(opts);
 #else
+	printf(MODULE_PREFIX "Closing device#%d port#%d pre cap stop\n", opts->brd_idx, opts->card_idx);
 	VEGA3311_CAP_Stop(opts->brd_idx, (API_VEGA3311_CAP_CHN_E)opts->card_idx, API_VEGA3311_CAP_MEDIA_TYPE_VIDEO);
 	VEGA3311_CAP_Stop(opts->brd_idx, (API_VEGA3311_CAP_CHN_E)opts->card_idx, API_VEGA3311_CAP_MEDIA_TYPE_AUDIO);
         VEGA3311_CAP_Stop(opts->brd_idx, (API_VEGA3311_CAP_CHN_E)opts->card_idx, API_VEGA3311_CAP_MEDIA_TYPE_ANC_DATA);
+	printf(MODULE_PREFIX "Closing device#%d port#%d post cap stop\n", opts->brd_idx, opts->card_idx);
+#endif
+
+#if 0
+        if (status == API_VEGA_BQB_STATUS_ERROR) {
+	        printf(MODULE_PREFIX "Closing device#%d port#%d call reset (deferred)\n", opts->brd_idx, opts->card_idx);
+                /* This is super dangerous, it resets all encoders not just this encoder */
+                //VEGA_BQB_ENC_Reset((API_VEGA_BQB_DEVICE_E)opts->brd_idx);
+        }
 #endif
 
         for (int i = 0; i < 30; i++) {
