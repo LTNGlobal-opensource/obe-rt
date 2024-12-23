@@ -293,6 +293,18 @@ const char *lookupVegaCapState(API_VEGA3311_CAP_STATE_E s)
         return "UNKNOWN";
 }
 
+const char *lookupVegaBQBState(API_VEGA_BQB_STATUS_E s)
+{
+        if (s == API_VEGA_BQB_STATUS_OFF)               return "API_VEGA_BQB_STATUS_OFF";
+        if (s == API_VEGA_BQB_STATUS_STANDBY)           return "API_VEGA_BQB_STATUS_STANDBY";
+        if (s == API_VEGA_BQB_STATUS_ENCODING)          return "API_VEGA_BQB_STATUS_ENCODING";
+        if (s == API_VEGA_BQB_STATUS_DECODING)          return "API_VEGA_BQB_STATUS_DECODING";
+        if (s == API_VEGA_BQB_STATUS_ERROR)             return "API_VEGA_BQB_STATUS_ERROR";
+        if (s == API_VEGA_BQB_STATUS_UNAVAILABLE)       return "API_VEGA_BQB_STATUS_UNAVAILABLE";
+
+        return "UNKNOWN";
+}
+
 const char *lookupVegaEnableState(API_VEGA3311_CAP_ENABLE_E s)
 {
         if (s == API_VEGA3311_CAP_ENABLE_ON)        return "ON";

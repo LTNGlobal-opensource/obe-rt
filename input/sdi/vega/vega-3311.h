@@ -62,6 +62,8 @@ const char *lookupVegaEncodingResolutionName(int v);
 const char *lookupVegaAudioLayoutName(API_VEGA3311_CAP_AUDIO_LAYOUT_E v);
 const char *lookupVegaAudioPacketSizeName(API_VEGA3311_CAP_AUDIO_PACKET_SIZE_E v);
 const char *lookupVegaEncodingImageFormatName(int v);
+const char *lookupVegaCapState(API_VEGA3311_CAP_STATE_E s);
+const char *lookupVegaBQBState(API_VEGA_BQB_STATUS_E s);
 int vega_has_source_signal_changed(API_VEGA3311_CAPTURE_FORMAT_T *src, API_VEGA3311_CAPTURE_FORMAT_T *dst);
 void vega_pts_to_ascii(char *buf, int64_t pts);
 
