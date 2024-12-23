@@ -159,7 +159,8 @@ static int configureCodec(vega_opts_t *opts)
 		return -1;
         }
         opts->codec.encodingResolution = (API_VEGA_BQB_RESOLUTION_E)fmt->vegaEncodingResolution;
-        opts->codec.interlaced = p->b_interlaced;
+        opts->codec.interlaced = fmt->progressive ? 0 : 1;
+        opts->codec.gop_size = (API_VEGA_BQB_GOP_SIZE_E)fmt->vegaFramerate;
 
         if (lookupVegaFramerate(p->i_fps_den, p->i_fps_num, &opts->codec.fps) < 0) {
 		fprintf(stderr, MODULE_PREFIX "unable to query encoder framerate %d, %d\n", p->i_fps_num, p->i_fps_den);
