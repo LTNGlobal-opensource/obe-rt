@@ -892,7 +892,9 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
 static void vega3311_configure_device_mode(vega_opts_t *opts, API_VEGA_BQB_RESOLUTION_E resolution)
 {
         if (VEGA_BQB_ENC_IsDeviceModeConfigurable((API_VEGA_BQB_DEVICE_E)opts->brd_idx)) {
-                fprintf(stderr, "DEVICE MODE IS CONFIGURABLE\n");
+#if LOCAL_DEBUG
+                printf(MODULE_PREFIX "Device mode is congifable\n", __func__);
+#endif
                 API_VEGA_BQB_ENCODE_CONFIG_T encode_config;
                 memset(&encode_config, 0, sizeof(API_VEGA_BQB_ENCODE_CONFIG_T));
                 switch (resolution) {
