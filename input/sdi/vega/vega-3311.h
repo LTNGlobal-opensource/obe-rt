@@ -39,6 +39,7 @@ extern struct klvanc_callbacks_s vega3311_vanc_callbacks;
 
 struct obe_to_vega_video
 {
+    int nr;                     /* Unique Identifier */
     int progressive;            /* Boolean - Progressive or interlaced. */
     int obe_name;
     int width;                  /* Visual pixel width / height */
@@ -48,9 +49,10 @@ struct obe_to_vega_video
     int timebase_num;           /* Eg.  1001 */
     int timebase_den;           /* Eg. 60000 */
     API_VEGA_BQB_FPS_E vegaFramerate;          /* SDK specific enum */
+    const char *name;
+    API_VEGA_BQB_GOP_SIZE_E gop_size;
 };
 
-const char *lookupVegaeTimeBase(API_VEGA_BQB_TIMEBASE_E tb);
 const char *vega_lookupFrameType(API_VEGA_BQB_FRAME_TYPE_E type);
 const char *lookupVegaSDILevelName(int v);
 const char *lookupVegaPixelFormatName(int v);
