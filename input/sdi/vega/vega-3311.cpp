@@ -475,6 +475,7 @@ static int open_device(vega_opts_t *opts, int probe)
         /* Get the object that represents the final output video stream */
         obe_output_stream_t *os = obe_core_get_output_stream_by_index(ctx->h, 0);
 
+        /* Configure most of the opts structure, so later we can drive the codec configuration from a single opts object */
         if (configureCodecBasics(opts, os) < 0) {
                 fprintf(stderr, MODULE_PREFIX "invalid encoder parameters, aborting.\n");
                 return -1;
@@ -498,6 +499,7 @@ static int open_device(vega_opts_t *opts, int probe)
                 return -1;
         }
 
+        /* Dump to console the exact codec configuration, for easier dev debugging. */
         API_VEGA_BQB_DESC_T desc = { { 0 } };
         VEGA_BQB_ENC_InitParamToString(ctx->init_params, &desc);
         printf(MODULE_PREFIX "initial param to string:\n%s\n", desc.content);
@@ -517,11 +519,9 @@ static int open_device(vega_opts_t *opts, int probe)
                 encret = VEGA_BQB_ENC_RegisterAvcCallback((API_VEGA_BQB_DEVICE_E)opts->brd_idx,
                         (API_VEGA_BQB_CHN_E)opts->card_idx, vega3311_video_avc_compressed_callback, opts);
                 fprintf(stderr, MODULE_PREFIX "Registered AVC Codec callback\n");
-        }
-        else {
+        } else {
                 encret = API_VEGA_BQB_RET_FAIL;
         }
-
         if (encret != API_VEGA_BQB_RET_SUCCESS) {
                 fprintf(stderr, MODULE_PREFIX "ERROR: failed to register encode callback function\n");
                 return -1;
@@ -531,8 +531,7 @@ static int open_device(vega_opts_t *opts, int probe)
 
         capret = VEGA3311_CAP_RegisterVideoCallback(opts->brd_idx, (API_VEGA3311_CAP_CHN_E)opts->card_idx,
                 vega3311_video_capture_callback, opts);
-        if (capret != API_VEGA3311_CAP_RET_SUCCESS)
-        {
+        if (capret != API_VEGA3311_CAP_RET_SUCCESS) {
                 fprintf(stderr, MODULE_PREFIX "ERROR: failed to register video capture callback function\n");
                 return -1;
         }
@@ -553,6 +552,9 @@ static int open_device(vega_opts_t *opts, int probe)
                 return -1;
         }
         
+        /* Configure the raw SDI capture interface.
+         * Most / all of this should be driven by the opts object.
+         */
         ctx->ch_init_param.eFormat       = opts->codec.pixelFormat;
 #if 1
         //ctx->ch_init_param.eFormat       = API_VEGA3311_CAP_IMAGE_FORMAT_P010;
