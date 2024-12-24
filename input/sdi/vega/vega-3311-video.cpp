@@ -889,6 +889,39 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
         pthread_mutex_unlock(&ctx->bDoLastFrame_lock);
 }
 
+static void vega3311_configure_device_mode(vega_opts_t *opts, API_VEGA_BQB_RESOLUTION_E resolution)
+{
+        if (VEGA_BQB_ENC_IsDeviceModeConfigurable((API_VEGA_BQB_DEVICE_E)opts->brd_idx)) {
+                fprintf(stderr, "DEVICE MODE IS CONFIGURABLE\n");
+                API_VEGA_BQB_ENCODE_CONFIG_T encode_config;
+                memset(&encode_config, 0, sizeof(API_VEGA_BQB_ENCODE_CONFIG_T));
+                switch (resolution) {
+                case API_VEGA_BQB_RESOLUTION_4096x2160:
+                case API_VEGA_BQB_RESOLUTION_3840x2160:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_1CH_4K2K;
+                        break;
+                case API_VEGA_BQB_RESOLUTION_2048x1080:
+                case API_VEGA_BQB_RESOLUTION_1920x1080:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_4CH_1080P;
+                        break;
+                case API_VEGA_BQB_RESOLUTION_1280x720:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_8CH_720P;
+                        break;
+                case API_VEGA_BQB_RESOLUTION_720x576:
+                case API_VEGA_BQB_RESOLUTION_720x480:
+                case API_VEGA_BQB_RESOLUTION_416x240:
+                case API_VEGA_BQB_RESOLUTION_352x288:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_16CH_SD;
+                        break;
+                default:
+                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_1CH_4K2K;
+                        break;
+                }
+
+                VEGA_BQB_ENC_ConfigDeviceMode((API_VEGA_BQB_DEVICE_E)opts->brd_idx, &encode_config);
+        }
+}
+
 int vega3311_video_configure_hevc(vega_opts_t *opts)
 {
 	printf(MODULE_PREFIX "%s()\n", __func__);
@@ -1028,35 +1061,7 @@ int vega3311_video_configure_hevc(vega_opts_t *opts)
 #endif
         }
 
-        if (VEGA_BQB_ENC_IsDeviceModeConfigurable((API_VEGA_BQB_DEVICE_E)opts->brd_idx)) {
-                fprintf(stderr, "DEVICE MODE IS CONFIGURABLE (HEVC)\n");
-                API_VEGA_BQB_ENCODE_CONFIG_T encode_config;
-                memset(&encode_config, 0, sizeof(API_VEGA_BQB_ENCODE_CONFIG_T));
-                switch (ctx->init_params.tHevcParam.eResolution) {
-                case API_VEGA_BQB_RESOLUTION_4096x2160:
-                case API_VEGA_BQB_RESOLUTION_3840x2160:
-                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_1CH_4K2K;
-                        break;
-                case API_VEGA_BQB_RESOLUTION_2048x1080:
-                case API_VEGA_BQB_RESOLUTION_1920x1080:
-                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_4CH_1080P;
-                        break;
-                case API_VEGA_BQB_RESOLUTION_1280x720:
-                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_8CH_720P;
-                        break;
-                case API_VEGA_BQB_RESOLUTION_720x576:
-                case API_VEGA_BQB_RESOLUTION_720x480:
-                case API_VEGA_BQB_RESOLUTION_416x240:
-                case API_VEGA_BQB_RESOLUTION_352x288:
-                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_16CH_SD;
-                        break;
-                default:
-                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_1CH_4K2K;
-                        break;
-                }
-
-                VEGA_BQB_ENC_ConfigDeviceMode((API_VEGA_BQB_DEVICE_E)opts->brd_idx, &encode_config);
-        }
+        vega3311_configure_device_mode(opts, ctx->init_params.tHevcParam.eResolution);
 
         return 0; /* success */
 }
@@ -1096,35 +1101,7 @@ int vega3311_video_configure_avc(vega_opts_t *opts)
                 /* No HDR support in H.264 */
         }
 
-        if (VEGA_BQB_ENC_IsDeviceModeConfigurable((API_VEGA_BQB_DEVICE_E)opts->brd_idx)) {
-                fprintf(stderr, "DEVICE MODE IS CONFIGURABLE (AVC)\n");
-                API_VEGA_BQB_ENCODE_CONFIG_T encode_config;
-                memset(&encode_config, 0, sizeof(API_VEGA_BQB_ENCODE_CONFIG_T));
-                switch (ctx->init_params.tAvcParam.eResolution) {
-                case API_VEGA_BQB_RESOLUTION_4096x2160:
-                case API_VEGA_BQB_RESOLUTION_3840x2160:
-                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_1CH_4K2K;
-                        break;
-                case API_VEGA_BQB_RESOLUTION_2048x1080:
-                case API_VEGA_BQB_RESOLUTION_1920x1080:
-                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_4CH_1080P;
-                        break;
-                case API_VEGA_BQB_RESOLUTION_1280x720:
-                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_8CH_720P;
-                        break;
-                case API_VEGA_BQB_RESOLUTION_720x576:
-                case API_VEGA_BQB_RESOLUTION_720x480:
-                case API_VEGA_BQB_RESOLUTION_416x240:
-                case API_VEGA_BQB_RESOLUTION_352x288:
-                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_16CH_SD;
-                        break;
-                default:
-                        encode_config.eMode = API_VEGA_BQB_DEVICE_ENC_MODE_1CH_4K2K;
-                        break;
-                }
-
-                VEGA_BQB_ENC_ConfigDeviceMode((API_VEGA_BQB_DEVICE_E)opts->brd_idx, &encode_config);
-        }
+        vega3311_configure_device_mode(opts, ctx->init_params.tAvcParam.eResolution);
 
         return 0; /* success */
 }
