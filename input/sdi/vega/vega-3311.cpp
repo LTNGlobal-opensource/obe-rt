@@ -108,7 +108,6 @@ const char *vega3311_sdk_version = VEGA_VERSION;
 
 static int configureCodecBasics(vega_opts_t *opts, obe_output_stream_t *os)
 {
-        printf(MODULE_PREFIX "ABOUT TO CONFIGURE CODEC\n");
 #if LOCAL_DEBUG
         printf("%s()\n", __func__);
 #endif
@@ -124,7 +123,7 @@ static int configureCodecBasics(vega_opts_t *opts, obe_output_stream_t *os)
               opts->codec.bitDepth     = API_VEGA_BQB_BIT_DEPTH_10;
               break;  
         }
-        printf(MODULE_PREFIX "Codec will be configured for %d bit\n", os->video_bit_depth);
+        printf(MODULE_PREFIX "Video Codec configured for %d bit\n", os->video_bit_depth);
 
         switch(os->stream_format) {
         case VIDEO_AVC_VEGA3311:
