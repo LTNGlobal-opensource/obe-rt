@@ -928,7 +928,6 @@ int vega3311_video_configure_hevc(vega_opts_t *opts)
 
 	vega_ctx_t *ctx = &opts->ctx;
 
-#if 1
         if (VEGA_BQB_ENC_MakeInitParam(
                 &ctx->init_params,
                 API_VEGA_BQB_HEVC_MAIN422_10_PROFILE,
@@ -957,70 +956,6 @@ int vega3311_video_configure_hevc(vega_opts_t *opts)
         ctx->init_params.tHevcParam.eInputPort = (API_VEGA_BQB_VIF_MODE_INPUT_PORT_E)opts->card_idx; // API_VEGA_BQB_VIF_MODE_INPUT_PORT_A;
 
         VEGA_BQB_ENC_SetDbgMsgLevel((API_VEGA_BQB_DEVICE_E)opts->brd_idx, (API_VEGA_BQB_CHN_E)opts->card_idx, API_VEGA_BQB_DBG_LEVEL_0);
-#else
-        /* TODO: Migrate all of this hard-coded struct access stuff into the
-         * formal settings macros.
-         */
-// API_VENC_INIT_PARAM_T
-        ctx->init_params.eCodecType             = API_VEGA_BQB_CODEC_TYPE_HEVC;
-        ctx->init_params.eOutputFmt             = API_VEGA_BQB_STREAM_OUTPUT_FORMAT_ES;
-
-        /* HEVC */
-        ctx->init_params.tHevcParam.eInputMode       = API_VEGA_BQB_INPUT_MODE_DATA;  /* Source data from Host */
-        //ctx->init_params.tHevcParam.eInputMode       = API_VEGA_BQB_INPUT_MODE_VIF_SQUARE;
-        ctx->init_params.tHevcParam.eInputPort       = (API_VEGA_BQB_VIF_MODE_INPUT_PORT_E)opts->card_idx; // API_VEGA_BQB_VIF_MODE_INPUT_PORT_A;
-        ctx->init_params.tHevcParam.eRobustMode      = API_VEGA_BQB_VIF_ROBUST_MODE_BLUE_SCREEN;
-        ctx->init_params.tHevcParam.eProfile         = API_VEGA_BQB_HEVC_MAIN422_10_PROFILE;
-        ctx->init_params.tHevcParam.eLevel           = API_VEGA_BQB_HEVC_LEVEL_41;
-        ctx->init_params.tHevcParam.eTier            = API_VEGA_BQB_HEVC_MAIN_TIER;
-        ctx->init_params.tHevcParam.eResolution      = opts->codec.encodingResolution;
-        ctx->init_params.tHevcParam.eAspectRatioIdc  = API_VEGA_BQB_HEVC_ASPECT_RATIO_IDC_1;
-
-        ctx->init_params.tHevcParam.u32SarWidth     = opts->width;
-        ctx->init_params.tHevcParam.u32SarHeight    = opts->height;
-        ctx->init_params.tHevcParam.bDisableVpsTimingInfoPresent = false;
-        ctx->init_params.tHevcParam.eFormat          = opts->codec.eFormat;
-        ctx->init_params.tHevcParam.eChromaFmt       = opts->codec.chromaFormat;
-        ctx->init_params.tHevcParam.eBitDepth        = opts->codec.bitDepth;
-        ctx->init_params.tHevcParam.bInterlace       = opts->interlaced;
-        ctx->init_params.tHevcParam.bDisableSceneChangeDetect       = false;
-
-        /* Prevent 1920x1080 encodes coming out as 1920x1088 */
-        ctx->init_params.tHevcParam.tCrop.u32CropLeft   = 0;
-        ctx->init_params.tHevcParam.tCrop.u32CropRight  = 0;
-        ctx->init_params.tHevcParam.tCrop.u32CropTop    = 0;
-        ctx->init_params.tHevcParam.tCrop.u32CropBottom = ctx->init_params.tHevcParam.u32SarHeight % 16;
-
-        ctx->init_params.tHevcParam.eTargetFrameRate = opts->codec.fps;
-// tcustomedframerateinfo
-        ctx->init_params.tHevcParam.ePtsMode         = API_VEGA_BQB_PTS_MODE_AUTO;
-        ctx->init_params.tHevcParam.eIDRFrameNum     = API_VEGA_BQB_IDR_FRAME_ALL;
-        //ctx->init_params.tHevcParam.eIDRType         = API_VEGA_BQB_HEVC_IDR_TYPE_W_RADL;
-        ctx->init_params.tHevcParam.eIDRType         = API_VEGA_BQB_HEVC_IDR_TYPE_N_LP;
-        if (opts->codec.bframes) {
-                ctx->init_params.tHevcParam.eGopType = API_VEGA_BQB_GOP_IPB;
-        } else {
-                ctx->init_params.tHevcParam.eGopType = API_VEGA_BQB_GOP_IP;
-        }
-// eGopHeirarchy
-        ctx->init_params.tHevcParam.eGopSize         = opts->codec.gop_size;
-        ctx->init_params.tHevcParam.eBFrameNum       = opts->codec.bframes;
-        ctx->init_params.tHevcParam.bDisableTemporalId = false;
-        ctx->init_params.tHevcParam.eRateCtrlAlgo    = API_VEGA_BQB_RATE_CTRL_ALGO_CBR;
-// u32FillerTriggerLevel
-        ctx->init_params.tHevcParam.u32Bitrate       = opts->codec.bitrate_kbps; /* TODO: We need to drive this from external to the module. */
-// u32MaxVBR
-// u32AveVBR
-// u32MinVBR
-// u32CpbDelay
-        ctx->init_params.tHevcParam.tCoding.bDisableDeblocking  = false;
-// tHdrConfig
-        ctx->init_params.tHevcParam.bEnableUltraLowLatency = false;
-        //ctx->init_params.bDisableVpsTimingInfoPresent = false;
-        //ctx->init_params.tVideoSignalType.bPresentFlag = true;
-
-        //VEGA_BQB_ENC_SetDbgMsgLevel((API_VEGA_BQB_DEVICE_E)opts->brd_idx, (API_VEGA_BQB_CHN_E)opts->card_idx, API_VEGA_BQB_DBG_LEVEL_3);
-#endif
 
         /* Configure HDR */
         if (OPTION_ENABLED(hdr)) {
