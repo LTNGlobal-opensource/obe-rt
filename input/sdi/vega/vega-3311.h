@@ -84,8 +84,6 @@ typedef struct
 
         /* Capture layer and encoder layer configuration management */
         API_VEGA_BQB_INIT_PARAM_T init_params;
-        //API_VEGA_BQB_INIT_PARAM_T init_paramsMACRO;      /* TODO fix this during confirmance checking */
-        //API_VEGA_BQB_INIT_PARAM_T init_paramsMACROULL;   /* TODO fix this during confirmance checking */
         API_VEGA3311_CAP_INIT_PARAM_T ch_init_param;
 
         uint64_t framecount;
@@ -167,23 +165,17 @@ typedef struct
     vega_ctx_t ctx;
 
     /* Input */
-    int  brd_idx;       /* Board instance # */
+    int brd_idx;                        /* Board instance # */
     int card_idx;                       /* Port index # */
-
     int video_format;                   /* Eg. INPUT_VIDEO_FORMAT_720P_5994 */
     int num_audio_channels;             /* MAX_AUDIO_CHANNELS */
-
     int probe;                          /* Boolean. True if the hardware is currently in probe mode. */
-
     int probe_success;                  /* Boolean. Signal to the outer OBE core that probing is done. */
-
     int width;                          /* Eg. 1280 */
     int height;                         /* Eg. 720 */
     int timebase_num;                   /* Eg.  1001 */
     int timebase_den;                   /* Eg. 60000 */
-
     int interlaced;                     /* Boolean */
-    //int tff;                            /* Boolean */
 
     /* configuration for the codec. */
     struct {
