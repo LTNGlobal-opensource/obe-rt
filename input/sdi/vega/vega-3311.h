@@ -70,8 +70,6 @@ int vega_has_source_signal_changed(API_VEGA3311_CAPTURE_FORMAT_T *src, API_VEGA3
 void vega_pts_to_ascii(char *buf, int64_t pts);
 
 const struct obe_to_vega_video *lookupVegaCaptureResolution(int std, int framerate, int interlaced);
-const struct obe_to_vega_video *lookupVegaStandardByResolution(int width, int height, int timebase_num, int timebase_den);
-int lookupVegaFramerate(int num, int den, API_VEGA_BQB_FPS_E *fps);
 
 void klvanc_packet_header_dump_console(struct klvanc_packet_header_s *pkt);
 void vega_dump_signals_to_console(
