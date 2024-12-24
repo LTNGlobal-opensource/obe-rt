@@ -84,8 +84,8 @@ typedef struct
 
         /* Capture layer and encoder layer configuration management */
         API_VEGA_BQB_INIT_PARAM_T init_params;
-        API_VEGA_BQB_INIT_PARAM_T init_paramsMACRO;      /* TODO fix this during confirmance checking */
-        API_VEGA_BQB_INIT_PARAM_T init_paramsMACROULL;   /* TODO fix this during confirmance checking */
+        //API_VEGA_BQB_INIT_PARAM_T init_paramsMACRO;      /* TODO fix this during confirmance checking */
+        //API_VEGA_BQB_INIT_PARAM_T init_paramsMACROULL;   /* TODO fix this during confirmance checking */
         API_VEGA3311_CAP_INIT_PARAM_T ch_init_param;
 
         uint64_t framecount;
