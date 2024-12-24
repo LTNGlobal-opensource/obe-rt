@@ -895,6 +895,36 @@ int vega3311_video_configure_hevc(vega_opts_t *opts)
 
 	vega_ctx_t *ctx = &opts->ctx;
 
+#if 1
+        if (VEGA_BQB_ENC_MakeInitParam(
+                &ctx->init_params,
+                API_VEGA_BQB_HEVC_MAIN422_10_PROFILE,
+                API_VEGA_BQB_HEVC_LEVEL_41,
+                API_VEGA_BQB_HEVC_MAIN_TIER,
+                opts->codec.encodingResolution,
+                opts->codec.chromaFormat,
+                opts->codec.bitDepth,
+                opts->codec.fps,
+                opts->codec.bitrate_kbps,
+                270000) != 0)
+        {
+                fprintf(stderr, MODULE_PREFIX "FAILED TO CALL MACRO TO CONFIGURE (HEVC)\n");
+        }
+        ctx->interlacedTFF                    = 1; /* SDI is TOP field first (except 480i)*/
+        ctx->init_params.eOutputFmt           = API_VEGA_BQB_STREAM_OUTPUT_FORMAT_ES;
+        if (opts->codec.bframes) {
+                ctx->init_params.tHevcParam.eGopType = API_VEGA_BQB_GOP_IPB;
+        } else {
+                ctx->init_params.tHevcParam.eGopType = API_VEGA_BQB_GOP_IP;
+        }
+        ctx->init_params.tHevcParam.bInterlace = opts->interlaced;
+        ctx->init_params.tHevcParam.eGopSize   = opts->codec.gop_size;
+        ctx->init_params.tHevcParam.eBFrameNum = opts->codec.bframes;        
+        ctx->init_params.tHevcParam.eInputMode = API_VEGA_BQB_INPUT_MODE_DATA;  /* Source data from Host */
+        ctx->init_params.tHevcParam.eInputPort = (API_VEGA_BQB_VIF_MODE_INPUT_PORT_E)opts->card_idx; // API_VEGA_BQB_VIF_MODE_INPUT_PORT_A;
+
+        VEGA_BQB_ENC_SetDbgMsgLevel((API_VEGA_BQB_DEVICE_E)opts->brd_idx, (API_VEGA_BQB_CHN_E)opts->card_idx, API_VEGA_BQB_DBG_LEVEL_0);
+#else
         /* TODO: Migrate all of this hard-coded struct access stuff into the
          * formal settings macros.
          */
@@ -957,6 +987,7 @@ int vega3311_video_configure_hevc(vega_opts_t *opts)
         //ctx->init_params.tVideoSignalType.bPresentFlag = true;
 
         //VEGA_BQB_ENC_SetDbgMsgLevel((API_VEGA_BQB_DEVICE_E)opts->brd_idx, (API_VEGA_BQB_CHN_E)opts->card_idx, API_VEGA_BQB_DBG_LEVEL_3);
+#endif
 
         /* Configure HDR */
         if (OPTION_ENABLED(hdr)) {
@@ -1047,7 +1078,7 @@ int vega3311_video_configure_avc(vega_opts_t *opts)
                 opts->codec.bitrate_kbps,
                 270000) != 0)
         {
-                fprintf(stderr, MODULE_PREFIX "FAILED TO CALL MACRO TO CONFIGURE\n");
+                fprintf(stderr, MODULE_PREFIX "FAILED TO CALL MACRO TO CONFIGURE (AVC)\n");
         }
         ctx->interlacedTFF                    = 1; /* SDI is TOP field first (except 480i)*/
         ctx->init_params.eOutputFmt           = API_VEGA_BQB_STREAM_OUTPUT_FORMAT_ES;
