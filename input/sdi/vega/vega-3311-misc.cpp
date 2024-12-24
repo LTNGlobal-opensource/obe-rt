@@ -252,15 +252,18 @@ const struct obe_to_vega_video *lookupVegaCaptureResolution(int std, int framera
 	return NULL;
 }
 
-const struct obe_to_vega_video *lookupVegaStandardByResolution(int width, int height, int framerate)
+const struct obe_to_vega_video *lookupVegaStandardByResolution(int width, int height, int num, int den)
 {
+        printf("%s(%d,%d,%d,%d)\n", __func__, width, height, num, den);
+
 	for (unsigned int i = 0; i < (sizeof(video_format_tab) / sizeof(struct obe_to_vega_video)); i++) {
 		const struct obe_to_vega_video *fmt = &video_format_tab[i];
-		if (fmt->width == width && fmt->height == height && fmt->vegaFramerate == framerate) {
+		if (fmt->width == width && fmt->height == height && fmt->timebase_num == num && fmt->timebase_den == den) {
 			return fmt;
 		}
 	}
 
+        printf("%s() returns null\n", __func__);
 	return NULL;
 }
 
@@ -269,6 +272,7 @@ int lookupVegaFramerate(int num, int den, API_VEGA_BQB_FPS_E *fps)
 	for (unsigned int i = 0; i < (sizeof(video_format_tab) / sizeof(struct obe_to_vega_video)); i++) {
 		const struct obe_to_vega_video *fmt = &video_format_tab[i];
 		if (fmt->timebase_num == num && fmt->timebase_den == den) {
+                        printf("Looking up %d/%d returning %d\n", num, den, fmt->vegaFramerate);
 			*fps = fmt->vegaFramerate;
                         return 0; /* Success */
 		}

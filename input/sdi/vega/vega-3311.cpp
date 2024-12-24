@@ -106,19 +106,25 @@ using namespace std;
 
 const char *vega3311_sdk_version = VEGA_VERSION;
 
-static int configureCodec(vega_opts_t *opts)
+static int configureCodecBasics(vega_opts_t *opts, obe_output_stream_t *os)
 {
+        printf(MODULE_PREFIX "ABOUT TO CONFIGURE CODEC\n");
 #if LOCAL_DEBUG
         printf("%s()\n", __func__);
 #endif
-        vega_ctx_t *ctx = &opts->ctx;
-        obe_output_stream_t *os = obe_core_get_output_stream_by_index(ctx->h, 0);
-        if (!os) {
-                return -1;
-        }
-        x264_param_t *p = &os->avc_param;
 
         printf(MODULE_PREFIX "Configuring codec based on os_stream_format type 0x%x\n", os->stream_format);
+        printf(MODULE_PREFIX "Timebase %d/%d\n", opts->timebase_num, opts->timebase_den);
+
+        switch (os->video_bit_depth) {
+        case 8:
+              opts->codec.bitDepth     = API_VEGA_BQB_BIT_DEPTH_8;
+              break;  
+        case 10:
+              opts->codec.bitDepth     = API_VEGA_BQB_BIT_DEPTH_10;
+              break;  
+        }
+        printf(MODULE_PREFIX "Codec will be configured for %d bit\n", os->video_bit_depth);
 
         switch(os->stream_format) {
         case VIDEO_AVC_VEGA3311:
@@ -144,28 +150,38 @@ static int configureCodec(vega_opts_t *opts)
                 opts->codec.inputMode    = API_VEGA3311_CAP_INPUT_MODE_4CHN;
                 opts->codec.inputSource  = API_VEGA3311_CAP_INPUT_SOURCE_SDI;
         }
+
+        /* The user configuration params need to be processed */
+        x264_param_t *p = &os->avc_param;
+        opts->codec.bitrate_kbps = p->rc.i_bitrate;
+        opts->codec.bframes      = (API_VEGA_BQB_B_FRAME_NUM_E)p->i_bframe;
+
+        /* The other parameters we've detected and know */
         opts->codec.sdiLevel     = API_VEGA3311_CAP_SDI_LEVEL_A;
         opts->codec.audioLayout  = API_VEGA3311_CAP_AUDIO_LAYOUT_16P0;
         opts->codec.pixelFormat  = API_VEGA3311_CAP_IMAGE_FORMAT_NV16;
-        opts->codec.bitrate_kbps = p->rc.i_bitrate;
-        opts->codec.gop_size     = (API_VEGA_BQB_GOP_SIZE_E)p->i_keyint_max;
-        opts->codec.bframes      = (API_VEGA_BQB_B_FRAME_NUM_E)p->i_bframe;
         opts->codec.width        = p->i_width;
         opts->codec.height       = p->i_height;
 
-        const struct obe_to_vega_video *fmt = lookupVegaStandardByResolution(opts->codec.width, opts->codec.height, API_VEGA3311_CAP_FPS_60);
+        /* Signal detect was already done, lets get the details and configure the basics to support it */
+        vega_ctx_t *ctx = &opts->ctx;
+        const struct obe_to_vega_video *fmt = ctx->detected.fmt;
         if (!fmt) {
 		fprintf(stderr, MODULE_PREFIX "unable to query encoder parameters for specific width, height and framerate\n");
 		return -1;
         }
+        printf(MODULE_PREFIX "Configuring session using fmt id %d\n", fmt->nr);
         opts->codec.encodingResolution = (API_VEGA_BQB_RESOLUTION_E)fmt->vegaEncodingResolution;
-        opts->codec.interlaced = fmt->progressive ? 0 : 1;
-        opts->codec.gop_size = (API_VEGA_BQB_GOP_SIZE_E)fmt->vegaFramerate;
+        opts->interlaced = fmt->progressive ? 0 : 1;
+        opts->codec.fps = fmt->vegaFramerate;
+        opts->codec.gop_size = fmt->gop_size;
 
+#if 0
         if (lookupVegaFramerate(p->i_fps_den, p->i_fps_num, &opts->codec.fps) < 0) {
 		fprintf(stderr, MODULE_PREFIX "unable to query encoder framerate %d, %d\n", p->i_fps_num, p->i_fps_den);
 		return -1;
         }
+#endif
 
         if (opts->codec.bitDepth == API_VEGA_BQB_BIT_DEPTH_10) {
                 p->i_csp |= X264_CSP_HIGH_DEPTH;
@@ -229,7 +245,7 @@ static int configureCodec(vega_opts_t *opts)
         printf(MODULE_PREFIX "encoder.chroma       = %d '%s'\n", opts->codec.chromaFormat, lookupVegaEncodingChromaName(opts->codec.chromaFormat));
         printf(MODULE_PREFIX "encoder.bitdepth     = %d '%s'\n", opts->codec.bitDepth, lookupVegaBitDepthName(opts->codec.bitDepth));
         printf(MODULE_PREFIX "encoder.pixelformat  = %d '%s'\n", opts->codec.pixelFormat, lookupVegaPixelFormatName(opts->codec.pixelFormat));
-        printf(MODULE_PREFIX "encoder.interlaced   = %d\n", opts->codec.interlaced);
+        printf(MODULE_PREFIX "encoder.interlaced   = %d\n", opts->interlaced);
 
         return 0; /* Success */
 }
@@ -368,7 +384,7 @@ static int open_device(vega_opts_t *opts, int probe)
                 vega3311_vanc_callbacks.smpte_2108_1 = NULL;
         }
 
-
+        /* Go through input signal detection */
         API_VEGA3311_CAPTURE_DEVICE_INFO_T st_dev_info;
 
         //VEGA3311_CAP_ResetChannel(opts->brd_idx, (API_VEGA3311_CAP_CHN_E)opts->card_idx);
@@ -382,14 +398,13 @@ static int open_device(vega_opts_t *opts, int probe)
 		
         capret = VEGA3311_CAP_GetProperty(opts->brd_idx,
                 (API_VEGA3311_CAP_CHN_E)opts->card_idx, &st_dev_info);
-
         if (capret != API_VEGA3311_CAP_RET_SUCCESS) {
                 fprintf(stderr, MODULE_PREFIX "failed to get hardware properties\n");
                 return -1;
         }
 
         capret = VEGA3311_CAP_QueryStatus(opts->brd_idx,
-                (API_VEGA3311_CAP_CHN_E)opts->card_idx, &ctx->detectedFormat);
+                (API_VEGA3311_CAP_CHN_E)opts->card_idx, &ctx->detected.sdi);
 
         if (capret != API_VEGA3311_CAP_RET_SUCCESS) {
                 fprintf(stderr, MODULE_PREFIX "failed to get signal properties\n");
@@ -397,36 +412,36 @@ static int open_device(vega_opts_t *opts, int probe)
         }
 
 	if (probe == 1) {
-                vega_dump_signals_to_console(st_dev_info, ctx->detectedFormat);
+                vega_dump_signals_to_console(st_dev_info, ctx->detected.sdi);
 	}
 
-	if (ctx->detectedFormat.eSourceSdiLocked != API_VEGA3311_CAP_SRC_STATUS_LOCKED) {
+	if (ctx->detected.sdi.eSourceSdiLocked != API_VEGA3311_CAP_SRC_STATUS_LOCKED) {
 		fprintf(stderr, MODULE_PREFIX "No signal found\n");
 		return -1;
 	}
 
-	/* We need to understand how much VANC we're going to be receiving. */
-	const struct obe_to_vega_video *std = lookupVegaCaptureResolution(
-                ctx->detectedFormat.eSourceSdiResolution,
-                ctx->detectedFormat.eSourceSdiFrameRate,
-                ctx->detectedFormat.bSourceSdiInterlace);
-	if (std == NULL) {
+	ctx->detected.fmt = lookupVegaCaptureResolution(
+                ctx->detected.sdi.eSourceSdiResolution,
+                ctx->detected.sdi.eSourceSdiFrameRate,
+                ctx->detected.sdi.bSourceSdiInterlace);
+	if (ctx->detected.fmt == NULL) {
 		fprintf(stderr, MODULE_PREFIX "No detected standard for vega aborting\n");
 		exit(0);
 	}
+        const struct obe_to_vega_video *std = ctx->detected.fmt;
 
 	opts->brd_idx = (API_VEGA_BQB_DEVICE_E)0;
 	opts->width = std->width;
 	opts->height = std->height;
-	opts->interlaced = std->progressive ? 0 : 1;
+	opts->interlaced = std->progressive == 1 ? 0 : 1;
 	opts->timebase_den = std->timebase_den;
 	opts->timebase_num = std->timebase_num;
 	opts->video_format = std->obe_name;
 
-	fprintf(stderr, MODULE_PREFIX "Detected resolution %dx%d%c @ %d/%d\n",
-		opts->width, opts->height,
-                opts->interlaced ? 'i' : 'p',
-		opts->timebase_den, opts->timebase_num);
+	fprintf(stderr, MODULE_PREFIX "Detected resolution %s { %d, %d } [formatid: %d]\n",
+		std->name,
+		std->timebase_den, std->timebase_num,
+                std->nr);
 
         if (probe) {
                 return 0; /* Success */
@@ -457,10 +472,14 @@ static int open_device(vega_opts_t *opts, int probe)
                 return -1;
         }
 
+        /* Get the object that represents the final output video stream */
         obe_output_stream_t *os = obe_core_get_output_stream_by_index(ctx->h, 0);
 
-        printf(MODULE_PREFIX "Configuring advantec codec for stream_format type 0x%x\n", os->stream_format);
-
+        if (configureCodecBasics(opts, os) < 0) {
+                fprintf(stderr, MODULE_PREFIX "invalid encoder parameters, aborting.\n");
+                return -1;
+        }
+        
         switch (os->stream_format) {
         case VIDEO_HEVC_VEGA3311:
                 if (vega3311_video_configure_hevc(opts) < 0) {
@@ -806,19 +825,6 @@ static void *vega_open_input(void *ptr)
         opts->enable_4k_quad     = user_opts->enable_4k_quad;
         opts->enable_4k_2si      = user_opts->enable_4k_2si;
 
-        obe_output_stream_t *os = obe_core_get_output_stream_by_index(h, 0);
-        if (!os) {
-                return NULL;
-        }
-        switch (os->video_bit_depth) {
-        case 8:
-              opts->codec.bitDepth     = API_VEGA_BQB_BIT_DEPTH_8;
-              break;  
-        case 10:
-              opts->codec.bitDepth     = API_VEGA_BQB_BIT_DEPTH_10;
-              break;  
-        }
-        printf(MODULE_PREFIX "compression codec will be configured for %d bit\n", os->video_bit_depth);
 
 #if 0
         opts->enable_vanc_cache = user_opts->enable_vanc_cache;
@@ -834,12 +840,6 @@ static void *vega_open_input(void *ptr)
 
         non_display_parser = &ctx->non_display_parser;
         non_display_parser->device = device;
-
-        printf("ABOUT TO CONFIGURE CODEC\n");
-        if (configureCodec(opts) < 0) {
-                fprintf(stderr, MODULE_PREFIX "invalid encoder parameters, aborting.\n");
-                return NULL;
-        }
 
 	if (open_device(opts, 0) < 0)
 		return NULL;

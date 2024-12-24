@@ -70,7 +70,7 @@ int vega_has_source_signal_changed(API_VEGA3311_CAPTURE_FORMAT_T *src, API_VEGA3
 void vega_pts_to_ascii(char *buf, int64_t pts);
 
 const struct obe_to_vega_video *lookupVegaCaptureResolution(int std, int framerate, int interlaced);
-const struct obe_to_vega_video *lookupVegaStandardByResolution(int width, int height, int framerate);
+const struct obe_to_vega_video *lookupVegaStandardByResolution(int width, int height, int timebase_num, int timebase_den);
 int lookupVegaFramerate(int num, int den, API_VEGA_BQB_FPS_E *fps);
 
 void klvanc_packet_header_dump_console(struct klvanc_packet_header_s *pkt);
@@ -126,7 +126,10 @@ typedef struct
         struct ltn_histogram_s *hg_callback_video;
 
         /* Detected signals during probe */
-        API_VEGA3311_CAPTURE_FORMAT_T detectedFormat;
+        struct {
+                API_VEGA3311_CAPTURE_FORMAT_T sdi;
+                const struct obe_to_vega_video *fmt;
+        } detected;
 
         int interlacedTFF;
         
@@ -186,7 +189,7 @@ typedef struct
 
     /* configuration for the codec. */
     struct {
-            int                             interlaced;
+            //int                             interlaced;
             int bitrate_kbps;
             API_VEGA_BQB_GOP_SIZE_E         gop_size;
             API_VEGA_BQB_B_FRAME_NUM_E      bframes;
