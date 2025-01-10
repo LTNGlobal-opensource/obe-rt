@@ -433,6 +433,25 @@ static void *start_filter_audio( void *ptr )
             raw_frame->audio_frame.sample_fmt);
 #endif
 
+#if 0
+        /* maintain a count and an average for how many samples
+         * we're receiveing per second. The average is better over, for example, 60 seconds.
+         */
+        static uint64_t g_num_samples = 0;
+        g_num_samples += raw_frame->audio_frame.num_samples;
+
+        static time_t then = 0;
+        time_t now = time(NULL);
+        if (now != then) {
+            static uint64_t g_num_samples_old = 0;
+            struct timeval ts;
+            gettimeofday(&ts, NULL);
+            printf("%09d.%06d - %012" PRIu64 "   %" PRIu64 "\n", ts.tv_sec, ts.tv_usec, g_num_samples, g_num_samples - g_num_samples_old);
+            then = now;
+            g_num_samples_old = g_num_samples;
+        }
+#endif
+
         /* ignore the video track, process all PCM encoders first */
         for (int i = 1; i < h->num_encoders; i++)
         {
