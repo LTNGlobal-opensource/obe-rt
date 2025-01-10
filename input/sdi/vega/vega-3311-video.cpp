@@ -443,6 +443,19 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
         printf(MODULE_PREFIX "%s() recd raw video frame\n", __func__);
 #endif
 
+        if (g_decklink_monitor_hw_clocks) {
+
+                struct timeval ts;
+                gettimeofday(&ts, NULL);
+
+                printf("%lu.%08lu -- vpcr %012" PRIi64 " apcr %012" PRIi64 " a-vdiff: %012" PRIi64 "\n",
+                        ts.tv_sec,
+                        ts.tv_usec,
+                        ctx->videoLastPCR,
+                        ctx->audioLastPCR,
+                        ctx->audioLastPCR - ctx->videoLastPCR);
+        }
+
         pthread_mutex_lock(&ctx->bDoLastFrame_lock);
 
         ctx->framecount++;
