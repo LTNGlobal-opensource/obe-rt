@@ -2628,8 +2628,9 @@ static int cb_SDP(void *callback_context, struct klvanc_context_s *ctx, struct k
         bs_write(&bs,  4, 2);         /* '0010' fixed value */
 
         int64_t pts = decklink_ctx->stream_time / 300 + (10 * 90000);
+        pts &= 0x1ffffffffL; /* preserve only 33bits */
 
-        bs_write(&bs,  3, (pts >> 30));           /* PTS[32:30] */
+        bs_write(&bs,  3, (pts >> 30) & 0x7);     /* PTS[32:30] */
         bs_write(&bs,  1, 1);                     /* marker_bit */
         bs_write(&bs, 15, (pts >> 15) & 0x7fff);  /* PTS[29:15] */
         bs_write(&bs,  1, 1);                     /* marker_bit */
