@@ -194,7 +194,7 @@ void vega3311_audio_callback(uint32_t u32DevId,
 	}
 
         /* Vega deliveres the samples in s16P planar format already. We don't need to
-         * convert from INterleaved to planar. Yay.
+         * convert from Interleaved to planar. Yay.
          */
 
         //int64_t pcr = convertSCR_to_PCR(st_input_info->tCurrentPCR.u64Dword);
