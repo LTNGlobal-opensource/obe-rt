@@ -135,7 +135,61 @@ void vega3311_audio_callback(uint32_t u32DevId,
                 /* Encoder wants to shut down */
                 return;
         }
-        
+
+#if 0
+        static struct timeval t_begin = { 0, 0 };
+        static uint64_t g_num_samples = 0;
+        static uint64_t g_num_samples_begin = 0;
+        g_num_samples += (st_frame_info->u32BufSize / MAX_VEGA_AUDIO_CHANNELS / sizeof(uint16_t));
+
+        if (t_begin.tv_sec == 0) {
+                gettimeofday(&t_begin, NULL);
+                g_num_samples_begin = g_num_samples;
+        }
+
+        static time_t then = 0;
+        time_t now = time(NULL);
+        if (now != then) {
+            static uint64_t g_num_samples_old = 0;
+            struct timeval ts;
+            gettimeofday(&ts, NULL);
+
+            uint64_t x = t_begin.tv_sec * 1000;
+            x += t_begin.tv_usec / 1000;
+
+            uint64_t y = ts.tv_sec * 1000;
+            y += ts.tv_usec / 1000;
+
+            uint64_t ms = y - x;
+            double samples_per_second = ((double)(g_num_samples - g_num_samples_begin) / (double)ms) * 1000;
+
+
+            printf("%09d.%06d - %012" PRIu64 "   %" PRIu64 ", sps %f\n", ts.tv_sec, ts.tv_usec, g_num_samples, g_num_samples - g_num_samples_old, samples_per_second);
+            then = now;
+            g_num_samples_old = g_num_samples;
+        }
+        ctx->audioLastPCR = st_input_info->tCurrentPCR.u64Dword; /* Keep other parts of the solkution happier */
+        return;
+
+        /* Audio sample size is sample width * number of channels:
+         * 16 channels of audio, 16 bit size, in the following format:
+         * c1 c1 c2 c2 c3 c3 c4 c4
+         * XX XX YY YY AA AA BB BB
+         * 
+         * Sanples per frame is therefore buffer size (7680) / channels (16) / bytes-per-channel (2)
+         * = 240 samples per channel.
+         * 
+         * If a channel is 48000 samples per second, then number of buffers per second = 48000 / 240 = 200 ps
+         * 
+         * Objective histogram measurements show the audio callbacks arrive every 4-5ms, supporting the
+         * 200 buffers per second expectation
+         * 
+         */
+        if (7680 != st_frame_info->u32BufSize) {
+                printf("sample size is %d\n", st_frame_info->u32BufSize);
+        }
+#endif
+
         if (st_frame_info->u32BufSize == 0) {
                 if (st_input_info->eAudioState == API_VEGA3311_CAP_STATE_CAPTURING) {
                         printf(MODULE_PREFIX "[DEV%u:CH%d] audio state change to capturing, source signal recovery\n", u32DevId, eCh);
