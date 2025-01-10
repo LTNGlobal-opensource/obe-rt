@@ -110,6 +110,9 @@ static void *start_encoder_mp2( void *ptr )
     int64_t lastOutputFramePTS = 0; /* Last pts we output, we'll comare against future version to warn for discontinuities. */
 #endif
 
+    /* 648000 is 24ms
+     * lowest latency has frames_per_pes = 1
+     */
     pts_increment = 648000 * enc_params->frames_per_pes; /* 24ms, the codec frame size * number of frames per pes. */
 
     /* Lock the mutex until we verify parameters */
@@ -136,6 +139,7 @@ static void *start_encoder_mp2( void *ptr )
 
     twolame_init_params( tl_opts );
 
+    /* frame_size is 768 */
     frame_size = twolame_get_framelength( tl_opts ) * enc_params->frames_per_pes;
 
     encoder->is_ready = 1;
@@ -268,6 +272,9 @@ raw_frame->avfm.audio_pts, avfm.audio_pts);
             break;
         }
 
+        /* In low latency, this is 768.
+         * Resulting PES should contain 768 data bytes.
+         */
         output_size = twolame_encode_buffer_float32_interleaved( tl_opts, audio_buf, raw_frame->audio_frame.num_samples, output_buf, MP2_AUDIO_BUFFER_SIZE );
 
         if( output_size < 0 )
