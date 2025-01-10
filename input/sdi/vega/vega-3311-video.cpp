@@ -170,7 +170,7 @@ void vega3311_video_avc_compressed_callback(API_VEGA_BQB_AVC_CODED_PICT_T *p_pic
          */
         for (unsigned int i = 0; i < p_pict->u32NalNum; i++) {
 
-                if (g_decklink_monitor_hw_clocks) {
+                if (g_decklink_monitor_hw_clocks > 1) {
                         printf(MODULE_PREFIX "corrected  pts: %15" PRIi64 "  dts: %15" PRIi64
                                 " adjustedPicPTS %15" PRIi64 " adjustedPicDTS %15" PRIi64
                                 " ctx->videoPTSOffset %15" PRIi64 " ctx->videoDTSOffset %15" PRIi64 "\n",
@@ -271,7 +271,7 @@ void vega3311_video_hevc_compressed_callback(API_VEGA_BQB_HEVC_CODED_PICT_T *p_p
 
         for (unsigned int i = 0; i < p_pict->u32NalNum; i++) {
 
-                if (g_decklink_monitor_hw_clocks) {
+                if (g_decklink_monitor_hw_clocks > 1) {
                         printf(MODULE_PREFIX "corrected  pts: %15" PRIi64 "  dts: %15" PRIi64
                                 " adjustedPicPTS %15" PRIi64 " adjustedPicDTS %15" PRIi64
                                 " ctx->videoPTSOffset %15" PRIi64 " ctx->videoDTSOffset %15" PRIi64 "\n",
