@@ -47,6 +47,7 @@ typedef struct
     int use_fifo_head_timing;
 
     int dialnorm; /* ac3 specific. Default is -31 */
+    int compression_gain; /* ac3 specific. Default is -1, disabled. Valid values are 0-255 */
 
 } obe_aud_enc_params_t;
 

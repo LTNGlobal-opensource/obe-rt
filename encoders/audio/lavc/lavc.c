@@ -309,6 +309,8 @@ static void *aac_start_encoder(void *ptr)
     printf(MODULE "codec->bit_rate   = %" PRIi64 "\n", codec->bit_rate);
     printf(MODULE "long_name         = %s\n", enc->long_name);
     printf(MODULE "dialnorm          = %d\n", ctx->enc_params->dialnorm);
+    printf(MODULE "compression_ctrl  = %s\n", ctx->enc_params->compression_gain >= 0 ? "enabled" : "disabled");
+    printf(MODULE "compression_gain  = %d\n", ctx->enc_params->compression_gain);
     codec->channels = av_get_channel_layout_nb_channels(ctx->stream->channel_layout);
     codec->channel_layout = ctx->stream->channel_layout;
     codec->time_base.num = 1;
@@ -321,6 +323,9 @@ static void *aac_start_encoder(void *ptr)
     av_dict_set( &opts, "latm", is_latm, 0 );
     av_dict_set( &opts, "header_period", "2", 0 );
     av_dict_set_int(&opts, "dialnorm", ctx->enc_params->dialnorm, 0);
+    if (ctx->enc_params->compression_gain >= 0) {
+        av_dict_set_int(&opts, "compression_gain", ctx->enc_params->compression_gain, 0);
+    }
 
     if( avcodec_open2( codec, enc, &opts ) < 0 )
     {

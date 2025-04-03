@@ -1624,6 +1624,7 @@ int obe_start( obe_t *h )
                 aud_enc_params->encoder = h->encoders[h->num_encoders];
                 aud_enc_params->stream = ostream;
                 aud_enc_params->dialnorm = ostream->audio_metadata.dialnorm;
+                aud_enc_params->compression_gain = ostream->audio_metadata.compression_gain;
 
                 if (pthread_create(&h->encoders[h->num_encoders]->encoder_thread, NULL, ac3bitstream_encoder.start_encoder, (void*)aud_enc_params ) < 0 )
                 {
@@ -1649,6 +1650,7 @@ int obe_start( obe_t *h )
                 aud_enc_params->encoder = h->encoders[h->num_encoders];
                 aud_enc_params->stream = ostream;
                 aud_enc_params->dialnorm = ostream->audio_metadata.dialnorm;
+                aud_enc_params->compression_gain = ostream->audio_metadata.compression_gain;
 
                 input_stream = get_input_stream(h, ostream->input_stream_id);
                 aud_enc_params->input_sample_format = input_stream->sample_format;

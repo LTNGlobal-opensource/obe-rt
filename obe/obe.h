@@ -208,6 +208,7 @@ typedef struct
     int sample_rate;
     int sdi_audio_pair; /* 1-8 */
     int dialnorm; /* 0 to -31 - AC3 specific */
+    int compression_gain; /* -1 disabled, 0-255 - AC3 specific */
 
     /* Raw Audio */
     int sample_format;
@@ -338,7 +339,7 @@ typedef struct
     int dialnorm;
     int dsur_mode;
     int original;
-
+    int compression_gain; /* -1 disabled, 0-255 - AC3 specific */
 
 } obe_audio_metadata_t;
 

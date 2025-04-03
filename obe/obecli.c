@@ -211,6 +211,7 @@ static const char * stream_opts[] = { "action", "format",
                                       "mute", /* 50 */
                                       "gop-closed", /* 51 */
                                       "bit-depth", /* 52 */
+                                      "compression-gain", /* 53 */
                                       NULL };
 
 static const char * muxer_opts[]  = { "ts-type", "cbr", "ts-muxrate", "passthrough", "ts-id", "program-num", "pmt-pid", "pcr-pid",
@@ -878,6 +879,18 @@ static int set_stream( char *command, obecli_command_t *child )
                 }
             }
 
+            const char *compression_gain  = obe_get_option( stream_opts[53], opts );
+            int n_compression_gain = -1;
+            if (compression_gain) {
+                n_compression_gain = atoi(compression_gain);
+                if (n_compression_gain < -1) {
+                    n_compression_gain = -1;
+                }
+                if (n_compression_gain > 255) {
+                    n_compression_gain = 255;
+                }
+            }
+
             int video_codec_id = 0; /* AVC */
             if (video_codec) {
                 if (strcasecmp(video_codec, "AVC") == 0)
@@ -1246,6 +1259,7 @@ extern char g_video_encoder_tuning_name[64];
                         parse_enum_value( aac_encap, aac_encapsulations, &cli.output_streams[output_stream_id].aac_opts.latm_output );
                 }
 
+                cli.output_streams[output_stream_id].audio_metadata.compression_gain = n_compression_gain;
                 cli.output_streams[output_stream_id].audio_metadata.dialnorm = i_dialnorm;
                 cli.output_streams[output_stream_id].bitrate = obe_otoi( bitrate, default_bitrate );
                 cli.output_streams[output_stream_id].sdi_audio_pair = obe_otoi( sdi_audio_pair, cli.output_streams[output_stream_id].sdi_audio_pair );
