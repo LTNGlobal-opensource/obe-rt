@@ -158,7 +158,7 @@ static const char * const aac_encapsulations[]       = { "adts", "latm", 0 };
 static const char * const mp2_modes[]                = { "auto", "stereo", "joint-stereo", "dual-channel", 0 };
 static const char * const channel_maps[]             = { "", "mono", "stereo", "5.0", "5.1", 0 };
 static const char * const mono_channels[]            = { "left", "right", 0 };
-static const char * const output_modules[]           = { "udp", "rtp", "linsys-asi", "filets", 0 };
+static const char * const output_modules[]           = { "udp", "rtp", "linsys-asi", "filets", "srt", 0 };
 static const char * const addable_streams[]          = { "audio", "ttx" };
 static const char * const preset_names[]        = { "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow", "placebo", NULL };
 static const char * const tuning_names[]        = { "animation", "zerolatency", "fastdecode", "grain", "ssim", "psnr", NULL };
@@ -1597,6 +1597,15 @@ extern int64_t g_mux_smoother_fifo_data_size;
 extern int64_t g_mux_smoother_trim_ms;
 extern int64_t g_mux_smoother_dump;
 
+/* SRT Packet output */
+extern uint64_t g_srt_output_stats;
+extern uint64_t g_srt_packets_ps;
+extern uint64_t g_srt_packets_lost_count;
+extern uint64_t g_srt_packets_retransmitted_count;
+extern uint64_t g_srt_disconnect_count;
+extern uint64_t g_srt_connected;
+extern int g_srt_latency_ms;
+
 /* UDP Packet output */
 extern int g_udp_output_drop_next_video_packet;
 extern int g_udp_output_drop_next_audio_packet;
@@ -1775,6 +1784,15 @@ extern time_t g_decklink_missing_video_last_time;
         g_udp_output_bps);
     printf("udp_output.transport_payload_size  = %d\n", obe_core_get_payload_size());
     printf("udp_output.trim_ms                 = %" PRIi64 "\n", g_mux_smoother_trim_ms);
+
+    printf("srt_output.console_stats           = %" PRIi64 "\n", g_srt_output_stats);
+    printf("srt_output.packets_ps              = %" PRIi64 "\n", g_srt_packets_ps);
+    printf("srt_output.packets_lost            = %" PRIi64 "\n", g_srt_packets_lost_count);
+    printf("srt_output.packets_retrans         = %" PRIi64 "\n", g_srt_packets_retransmitted_count);
+    printf("srt_output.disconnects             = %" PRIi64 "\n", g_srt_disconnect_count);
+    printf("srt_output.latency_ms              = %" PRIi32 "\n", g_srt_latency_ms);
+    printf("srt_output.connected               = %" PRIi64 "\n", g_srt_connected);
+
     printf("core.runtime_statistics_to_file    = %d\n",
         g_core_runtime_statistics_to_file);
     printf("core.runtime_statistics_to_port    = %d\n",
@@ -1964,6 +1982,12 @@ static int set_variable(char *command, obecli_command_t *child)
     } else
     if (strcasecmp(var, "udp_output.trim_ms") == 0) {
         g_mux_smoother_trim_ms = sanitizeParamTrim(val);
+    } else
+    if (strcasecmp(var, "srt_output.console_stats") == 0) {
+        g_srt_output_stats = val;
+    } else
+    if (strcasecmp(var, "srt_output.latency_ms") == 0) {
+        g_srt_latency_ms = val;
     } else
     if (strcasecmp(var, "vanc_receiver.udp_port") == 0) {
         g_decklink_udp_vanc_receiver_port = val;
@@ -2675,7 +2699,7 @@ static int start_encode( char *command, obecli_command_t *child )
     FAIL_IF_ERROR( !cli.output.num_outputs, "No outputs selected\n" );
     for( int i = 0; i < cli.output.num_outputs; i++ )
     {
-        if( ( cli.output.outputs[i].type == OUTPUT_UDP || cli.output.outputs[i].type == OUTPUT_RTP || cli.output.outputs[i].type == OUTPUT_FILE_TS ) &&
+        if( ( cli.output.outputs[i].type == OUTPUT_UDP || cli.output.outputs[i].type == OUTPUT_RTP || cli.output.outputs[i].type == OUTPUT_SRT || cli.output.outputs[i].type == OUTPUT_FILE_TS ) &&
              !cli.output.outputs[i].target )
         {
             fprintf( stderr, "No output target chosen. Output-ID %d\n", i );

@@ -1268,13 +1268,14 @@ int obe_start( obe_t *h )
         switch (h->outputs[i]->output_dest.type) {
         case OUTPUT_UDP:
         case OUTPUT_RTP:
+        case OUTPUT_SRT:
             output = ip_output;
             break;
         case OUTPUT_FILE_TS:
             output = file_ts_output;
             break;
         default:
-            fprintf(stderr, "Invalid output type, undefined.\n");
+            fprintf(stderr, "%s() Invalid output type, undefined.\n", __func__);
             goto fail;
         }
 

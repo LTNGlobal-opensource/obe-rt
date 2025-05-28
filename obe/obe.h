@@ -526,6 +526,7 @@ enum output_e
     OUTPUT_LINSYS_ASI,
     OUTPUT_FILE_TS, /* MPEG-TS in file */
 //    OUTPUT_LINSYS_SMPTE_310M,
+    OUTPUT_SRT, /* MPEG-TS via SRT protocol */
 };
 
 /* Output structure
