@@ -106,6 +106,31 @@ uint64_t g_srt_connected = 0; /* true / false */
 int g_srt_latency_ms = 250;
 #endif
 
+// Resolves a hostname and port into sockaddr_in
+static int resolve_hostname(const char* hostname, int port, struct sockaddr_in *out_addr)
+{
+    struct addrinfo hints, *res = NULL;
+    char port_str[6];
+    snprintf(port_str, sizeof(port_str), "%d", port);
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;        // IPv4 only
+    hints.ai_socktype = SOCK_DGRAM;   // Doesn't matter, just need address
+    hints.ai_flags = AI_PASSIVE;
+
+    int err = getaddrinfo(hostname, port_str, &hints, &res);
+    if (err != 0) {
+        fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(err));
+        return -1;
+    }
+
+    struct sockaddr_in* ipv4 = (struct sockaddr_in*)res->ai_addr;
+    memcpy(out_addr, ipv4, sizeof(struct sockaddr_in));
+
+    freeaddrinfo(res);
+    return 0;
+}
+
 static int _srt_open(hnd_t *p_handle, obe_udp_opts_t *udp_opts)
 {
     obe_srt_ctx *p_srt = calloc(1, sizeof(*p_srt));
@@ -137,12 +162,31 @@ static int _srt_open(hnd_t *p_handle, obe_udp_opts_t *udp_opts)
         return -1;
     }
 
+    int is_ip = 0;
+    switch (udp_opts->hostname[0]) {
+    case '0':
+    case '1':
+    case '2':
+        is_ip = 1;
+        break;
+    }
+
     memset(&p_srt->sa, 0, sizeof(p_srt->sa));
-    p_srt->sa.sin_family = AF_INET;
-    p_srt->sa.sin_port = htons(udp_opts->port);
-    if (inet_pton(AF_INET, udp_opts->hostname, &p_srt->sa.sin_addr) != 1) {
-        perror("inet_pton");
-        return -1;
+
+    if (is_ip == 0) {
+        /* host/domain name to be resolved */
+        if (resolve_hostname(udp_opts->hostname, udp_opts->port, &p_srt->sa) < 0) {
+            klsyslog_and_stdout(LOG_ERR, "[srt] unable to IP resolve %s:%d\n",
+                udp_opts->hostname, udp_opts->port);
+            return -1;
+        }
+    } else {
+        p_srt->sa.sin_family = AF_INET;
+        p_srt->sa.sin_port = htons(udp_opts->port);
+        if (inet_pton(AF_INET, udp_opts->hostname, &p_srt->sa.sin_addr) != 1) {
+            perror("inet_pton");
+            return -1;
+        }
     }
 
     if (srt_connect(p_srt->skt, (struct sockaddr*)&p_srt->sa, sizeof(p_srt->sa)) == SRT_ERROR) {
@@ -422,12 +466,29 @@ static int _srt_reopen(hnd_t handle, obe_udp_opts_t *udp_opts)
         return -1;
     }
 
-    memset(&p_srt->sa, 0, sizeof(p_srt->sa));
-    p_srt->sa.sin_family = AF_INET;
-    p_srt->sa.sin_port = htons(udp_opts->port);
-    if (inet_pton(AF_INET, udp_opts->hostname, &p_srt->sa.sin_addr) != 1) {
-        perror("inet_pton");
-        return -1;
+    int is_ip = 0;
+    switch (udp_opts->hostname[0]) {
+    case '0':
+    case '1':
+    case '2':
+        is_ip = 1;
+        break;
+    }
+
+    if (is_ip == 0) {
+        /* host/domain name to be resolved */
+        if (resolve_hostname(udp_opts->hostname, udp_opts->port, &p_srt->sa) < 0) {
+            klsyslog_and_stdout(LOG_ERR, "[srt] unable to IP resolve %s:%d\n",
+                udp_opts->hostname, udp_opts->port);
+            return -1;
+        }
+    } else {
+        p_srt->sa.sin_family = AF_INET;
+        p_srt->sa.sin_port = htons(udp_opts->port);
+        if (inet_pton(AF_INET, udp_opts->hostname, &p_srt->sa.sin_addr) != 1) {
+            perror("inet_pton");
+            return -1;
+        }
     }
 
     klsyslog_and_stdout(LOG_ERR, "[srt] SRT attempting reconnect @ %s\n", t);
