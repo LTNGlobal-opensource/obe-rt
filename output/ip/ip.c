@@ -412,7 +412,7 @@ static void _srt_stats(hnd_t handle)
     }
 
     if (g_srt_output_stats) {
-        printf("[srt] Sent: %" PRId64 " pkts, Lost: %" PRId32 ", Retrans: %" PRId32 ", Bitrate: %.2f Mbps\n",
+        klsyslog_and_stdout(LOG_ERR, "[srt] Sent: %" PRId64 " pkts, Lost: %" PRId32 ", Retrans: %" PRId32 ", Bitrate: %.2f Mbps\n",
             p_srt->stats.pktSent,
             p_srt->stats.pktSndLoss,
             p_srt->stats.pktRetrans,
