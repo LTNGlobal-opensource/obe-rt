@@ -1605,6 +1605,7 @@ extern uint64_t g_srt_packets_retransmitted_count;
 extern uint64_t g_srt_disconnect_count;
 extern uint64_t g_srt_connected;
 extern int g_srt_latency_ms;
+extern char g_srt_stream_id[256];
 
 /* UDP Packet output */
 extern int g_udp_output_drop_next_video_packet;
@@ -1791,6 +1792,7 @@ extern time_t g_decklink_missing_video_last_time;
     printf("srt_output.packets_retrans         = %" PRIi64 "\n", g_srt_packets_retransmitted_count);
     printf("srt_output.disconnects             = %" PRIi64 "\n", g_srt_disconnect_count);
     printf("srt_output.latency_ms              = %" PRIi32 "\n", g_srt_latency_ms);
+    printf("srt_output.stream_id               = '%s'\n", g_srt_stream_id);
     printf("srt_output.connected               = %" PRIi64 "\n", g_srt_connected);
 
     printf("core.runtime_statistics_to_file    = %d\n",
@@ -1878,6 +1880,9 @@ static int set_variable(char *command, obecli_command_t *child)
         if (strncasecmp(var, "core.runtime_statistics_to_url", 30) == 0) {
             strcpy(&vars[0], &command[33]);
             /* handle this below */
+        } else
+        if (strncasecmp(var, "srt_output.stream_id", 20) == 0) {
+            strcpy(&vars[0], &command[23]);
         } else {
             printf("illegal variable name.\n");
             return -1;
@@ -1988,6 +1993,9 @@ static int set_variable(char *command, obecli_command_t *child)
     } else
     if (strcasecmp(var, "srt_output.latency_ms") == 0) {
         g_srt_latency_ms = val;
+    } else
+    if (strcasecmp(var, "srt_output.stream_id") == 0) {
+        strncpy(&g_srt_stream_id[0], vars, sizeof(g_srt_stream_id));
     } else
     if (strcasecmp(var, "vanc_receiver.udp_port") == 0) {
         g_decklink_udp_vanc_receiver_port = val;

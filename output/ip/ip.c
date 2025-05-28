@@ -104,6 +104,7 @@ uint64_t g_srt_packets_retransmitted_count = 0; /* Accumator */
 uint64_t g_srt_disconnect_count = 0; /* Accumator */
 uint64_t g_srt_connected = 0; /* true / false */
 int g_srt_latency_ms = 250;
+char g_srt_stream_id[256] = { 0 };
 #endif
 
 // Resolves a hostname and port into sockaddr_in
@@ -154,6 +155,14 @@ static int _srt_open(hnd_t *p_handle, obe_udp_opts_t *udp_opts)
     if (p_srt->skt == SRT_INVALID_SOCK) {
         fprintf(stderr, "Error creating SRT socket: %s\n", srt_getlasterror_str());
         return -1;
+    }
+
+    if (strlen(g_srt_stream_id) > 0) {
+        if (srt_setsockopt(p_srt->skt, 0, SRTO_STREAMID, g_srt_stream_id, strlen(g_srt_stream_id)) == SRT_ERROR) {
+            fprintf(stderr, "[srt] Failed to set streamid: %s\n", srt_getlasterror_str());
+            srt_close(p_srt->skt);
+            return 1;
+        }
     }
 
     if (srt_setsockopt(p_srt->skt, 0, SRTO_LATENCY, &g_srt_latency_ms, sizeof(g_srt_latency_ms)) == SRT_ERROR) {
@@ -458,6 +467,14 @@ static int _srt_reopen(hnd_t handle, obe_udp_opts_t *udp_opts)
     if (p_srt->skt == SRT_INVALID_SOCK) {
         fprintf(stderr, "Error creating SRT socket: %s\n", srt_getlasterror_str());
         return -1;
+    }
+
+    if (strlen(g_srt_stream_id) > 0) {
+        if (srt_setsockopt(p_srt->skt, 0, SRTO_STREAMID, g_srt_stream_id, strlen(g_srt_stream_id)) == SRT_ERROR) {
+            fprintf(stderr, "[srt] Failed to set streamid: %s\n", srt_getlasterror_str());
+            srt_close(p_srt->skt);
+            return 1;
+        }
     }
 
     if (srt_setsockopt(p_srt->skt, 0, SRTO_LATENCY, &g_srt_latency_ms, sizeof(g_srt_latency_ms)) == SRT_ERROR) {
