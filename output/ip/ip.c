@@ -97,6 +97,7 @@ int g_udp_output_stall_packet_ms = 0;
 int g_udp_output_latency_alert_ms = 0;
 int g_udp_output_tei_next_packet = 0;
 int g_udp_output_bad_sync_next_packet = 0;
+uint64_t g_udp_output_not_1316_next_packet = 0;
 uint64_t g_srt_output_stats = 0;
 uint64_t g_srt_packets_ps = 0;
 uint64_t g_srt_packets_lost_count = 0; /* Accumator */
@@ -680,6 +681,8 @@ static void *open_output( void *ptr )
 
         for( int i = 0; i < num_muxed_data; i++ )
         {
+            int payloadsize = obe_core_get_payload_size();
+
             if (g_udp_output_latency_alert_ms) {
                 static struct timeval lastPacketTime;
                 struct timeval now, diff;
@@ -825,17 +828,25 @@ static void *open_output( void *ptr )
                 }
             }
 
+            if (g_udp_output_not_1316_next_packet) {
+                if (payloadsize > 188) {
+                    payloadsize -= 188;
+                    g_udp_output_not_1316_next_packet = 0;
+                }
+                printf("Created short packet of length %d bytes\n", payloadsize);
+            }
+
             /* Output specific processing */
             if( output_dest->type == OUTPUT_RTP )
             {
-                if( write_rtp_pkt( ip_handle, &muxed_data[i]->data[ obe_core_get_payload_packets() * sizeof(int64_t)], obe_core_get_payload_size(), AV_RN64( muxed_data[i]->data ) ) < 0 )
+                if( write_rtp_pkt( ip_handle, &muxed_data[i]->data[ obe_core_get_payload_packets() * sizeof(int64_t)], payloadsize, AV_RN64( muxed_data[i]->data ) ) < 0 )
                     syslog( LOG_ERR, "[rtp] Failed to write RTP packet\n" );
             }
             else
             if (output_dest->type == OUTPUT_SRT)
             {
                 if (_srt_write(ip_handle,
-                    &muxed_data[i]->data[obe_core_get_payload_packets() * sizeof(int64_t)], obe_core_get_payload_size()) < 0)
+                    &muxed_data[i]->data[obe_core_get_payload_packets() * sizeof(int64_t)], payloadsize) < 0)
                 {
                     _srt_set_connected(ip_handle, 0);
                 }
@@ -843,7 +854,7 @@ static void *open_output( void *ptr )
             else
             {
 
-                if( udp_write( ip_handle, &muxed_data[i]->data[obe_core_get_payload_packets() * sizeof(int64_t)], obe_core_get_payload_size() ) < 0 )
+                if( udp_write( ip_handle, &muxed_data[i]->data[obe_core_get_payload_packets() * sizeof(int64_t)], payloadsize ) < 0 )
                     syslog( LOG_ERR, "[udp] Failed to write UDP packet\n" );
             }
 

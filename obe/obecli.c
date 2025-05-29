@@ -1620,6 +1620,7 @@ extern int g_udp_output_bad_sync_next_packet;
 extern int g_udp_output_stall_packet_ms;
 extern int g_udp_output_latency_alert_ms;
 extern int g_udp_output_bps;
+extern uint64_t g_udp_output_not_1316_next_packet;
 
 /* LOS frame injection. */
 extern int g_decklink_inject_frame_enable;
@@ -1785,6 +1786,7 @@ extern time_t g_decklink_missing_video_last_time;
         g_udp_output_bps);
     printf("udp_output.transport_payload_size  = %d\n", obe_core_get_payload_size());
     printf("udp_output.trim_ms                 = %" PRIi64 "\n", g_mux_smoother_trim_ms);
+    printf("udp_output.not_1316_length         = %" PRIi64 "\n", g_udp_output_not_1316_next_packet);
 
     printf("srt_output.console_stats           = %" PRIi64 "\n", g_srt_output_stats);
     printf("srt_output.packets_ps              = %" PRIi64 "\n", g_srt_packets_ps);
@@ -1987,6 +1989,9 @@ static int set_variable(char *command, obecli_command_t *child)
     } else
     if (strcasecmp(var, "udp_output.trim_ms") == 0) {
         g_mux_smoother_trim_ms = sanitizeParamTrim(val);
+    } else
+    if (strcasecmp(var, "udp_output.not_1316_length") == 0) {
+        g_udp_output_not_1316_next_packet = val;
     } else
     if (strcasecmp(var, "srt_output.console_stats") == 0) {
         g_srt_output_stats = val;
