@@ -411,13 +411,18 @@ static void _srt_stats(hnd_t handle)
     g_srt_packets_retransmitted_count += p_srt->stats.pktRetrans;
     g_srt_connected = _srt_get_connected(p_srt);
 
+    char t[64];
+    time_t now = time(NULL);
+    sprintf(t, "%s", ctime(&now));
+    t[ strlen(t) - 1] = 0;
+
     if (flag_lost_packets) {
-        klsyslog_and_stdout(LOG_ERR, "[srt] Lost packets changed, now %" PRIi64 "\n",
-            g_srt_packets_lost_count + p_srt->stats.pktSndLoss);
+        klsyslog_and_stdout(LOG_ERR, "[srt] Lost packets changed, now %" PRIi64 " @ %s\n",
+            g_srt_packets_lost_count + p_srt->stats.pktSndLoss, t);
     }
     if (flag_retrans_packets) {
-        klsyslog_and_stdout(LOG_ERR, "[srt] Retrans packets changed, now %" PRIi64 "\n",
-            g_srt_packets_retransmitted_count + p_srt->stats.pktRetrans);
+        klsyslog_and_stdout(LOG_ERR, "[srt] Retrans packets changed, now %" PRIi64 " @ %s\n",
+            g_srt_packets_retransmitted_count + p_srt->stats.pktRetrans, t);
     }
 
     if (g_srt_output_stats) {
