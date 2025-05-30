@@ -655,7 +655,6 @@ static void *open_output( void *ptr )
                  * Also, if the connection is closed for hours, this avoids a potential
                  * massive memory over-allocation.
                  */
-                num_muxed_data = output->queue.size;
                 for (int i = 0; i < num_muxed_data; i++) {
                     remove_from_queue(&output->queue);
                     av_buffer_unref(&muxed_data[i]);
