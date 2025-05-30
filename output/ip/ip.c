@@ -660,6 +660,8 @@ static void *open_output( void *ptr )
                     remove_from_queue(&output->queue);
                     av_buffer_unref(&muxed_data[i]);
                 }
+                free (muxed_data);
+                muxed_data = NULL;
 
                 /* Every second,l attempt a reconnect */
                 /* Try and re-open the connection every 1 second */
