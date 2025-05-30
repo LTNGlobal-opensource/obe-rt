@@ -83,6 +83,7 @@ extern int g_decklink_op47_teletext_reverse;
 
 /* TS Mux */
 extern int64_t g_mux_pcr_adjustment;
+extern ts_writer_t *g_mux_ts_writer_handle;
 
 char g_device_input_type[64]; /* decklink, ndi, etc */
 char g_device_input_port[128] = { 0 }; /* A, ndi://x.y.z, 0 */
@@ -1749,8 +1750,12 @@ extern time_t g_decklink_missing_video_last_time;
         g_mux_ts_monitor_bps,
         g_mux_ts_monitor_bps == 0 ? "disabled" : "enabled");
     printf("ts_mux.pcr_adjustment  = %" PRIi64 " (ms)\n", g_mux_pcr_adjustment);
-
-    printf("mux_smoother.last_item_count  = %" PRIi64 "\n",
+    if (g_mux_ts_writer_handle) {
+        printf("ts_mux.patpmt_version              = %d\n", ts_writer_get_patpmt_version(g_mux_ts_writer_handle));
+    } else {
+        printf("ts_mux.patpmt_version              = 0\n");
+    }
+    printf("mux_smoother.last_item_count       = %" PRIi64 "\n",
         g_mux_smoother_last_item_count);
     printf("mux_smoother.last_total_item_size  = %" PRIi64 " (bytes)\n",
         g_mux_smoother_last_total_item_size);
@@ -2082,6 +2087,13 @@ static int set_variable(char *command, obecli_command_t *child)
     if (strcasecmp(var, "ts_mux.pcr_adjustment") == 0) {
         g_mux_pcr_adjustment = val;
     } else
+    if (strcasecmp(var, "ts_mux.patpmt_version") == 0) {
+        if (g_mux_ts_writer_handle) {
+            ts_writer_set_patpmt_version(g_mux_ts_writer_handle, val);
+        } else {
+            printf("MUX not yet established, run the encoder first.\n");
+        }
+    } else
     if (strcasecmp(var, "video_encoder.sei_timestamping") == 0) {
         g_sei_timestamping = val;
     } else
@@ -2329,7 +2341,6 @@ extern void mux_dump_queue(obe_t *h);
         }
     }
 
-extern ts_writer_t *g_mux_ts_writer_handle;
     ts_show_queues(g_mux_ts_writer_handle);
 
 extern void hevc_show_stats();
