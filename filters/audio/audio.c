@@ -46,6 +46,11 @@
  */
 int g_filter_audio_effect_pcm = 0;
 
+#define NIELSEN_GLUE 0
+#if NIELSEN_GLUE
+int g_filter_audio_save_payload = 0;
+#endif
+
 static void obe_aud_filter_mute_samples(obe_output_stream_t *output_stream, obe_raw_frame_t *rf)
 {
     for (int i = 0; i < output_stream->audio_mute_count; i++) {
@@ -291,6 +296,51 @@ static void applyGain(obe_output_stream_t *output_stream, obe_raw_frame_t *rf, d
     }
 }
 
+#if NIELSEN_GLUE
+static void nielsenWatermark(obe_aud_filter_params_t *filter_params, obe_output_stream_t *output_stream, obe_raw_frame_t *rf, int outputStreamNr)
+{
+    static int limit = 0;
+    static int idx = 0;
+    if (g_filter_audio_save_payload > 0) {
+        limit = g_filter_audio_save_payload;
+        idx = 0;
+        g_filter_audio_save_payload = 0;
+    }
+
+    if (idx < limit) {
+        int num_channels = av_get_channel_layout_nb_channels(output_stream->channel_layout);
+
+        char fn[64];
+        sprintf(fn, "/tmp/audio-stream%02d-ch%02d-%08d.bin",
+            outputStreamNr,
+            num_channels, idx++);
+
+        int blen = rf->audio_frame.num_samples * num_channels * 4;
+        unsigned char *buf = malloc(blen);
+        if (!buf)
+            return;
+
+        /* Turn planar into interleaved */
+        int32_t *l = (int32_t *)rf->audio_frame.audio_data[0];
+        int32_t *r = (int32_t *)rf->audio_frame.audio_data[1];
+        int32_t *p = (int32_t *)buf;
+        for (int i = 0; i < rf->audio_frame.num_samples; i++) {
+            *(p++) = *(l++);
+            *(p++) = *(r++);
+        }
+
+        FILE *fh = fopen(fn , "wb");
+        if (fh) {
+            printf("Writing audio to %s\n", fn);
+            fwrite(buf, 1, blen, fh);
+            fclose(fh);
+        }
+
+        free(buf);
+    }
+}
+#endif
+
 static void applyEffects(obe_output_stream_t *output_stream, obe_raw_frame_t *rf)
 {
     if (g_filter_audio_effect_pcm & 0x03) {
@@ -535,7 +585,9 @@ printf(" split_raw_frame->audio_frame.linesize %d", split_raw_frame->audio_frame
 
             /* Audio Effects */
             applyEffects(output_stream, split_raw_frame);
-
+#if NIELSEN_GLUE
+            nielsenWatermark(filter_params, output_stream, split_raw_frame, i);
+#endif
             if ((num_channels == 2 || num_channels == 6) && strlen(output_stream->gain_db) > 0) {
                 applyGain(output_stream, split_raw_frame, output_stream->audioGain);
             }
