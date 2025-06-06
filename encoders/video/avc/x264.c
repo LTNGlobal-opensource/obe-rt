@@ -21,6 +21,7 @@
  *
  ******************************************************************************/
 
+#define INJECT_FAKE_1080i_CAPTIONS 0
 #define NEW_X264_720p 0
 #define NEW_X264_1080i 0
 
@@ -37,6 +38,149 @@
 #if DEV_ABR
 #include "obe/osd.h"
 #endif
+
+#if INJECT_FAKE_1080i_CAPTIONS
+static unsigned char captionarr[16 + 16 + 20 + 16][4] =
+{
+//cc_count 16 - "This is a test message",
+  {  0, 0xfc, 0x94, 0xae, },
+  {  1, 0xfc, 0x94, 0x20, },
+  {  2, 0xfc, 0x91, 0x40, },
+  {  3, 0xfc, 0x54, 0x68, },
+  {  4, 0xfc, 0xe9, 0x73, },
+  {  5, 0xfc, 0x20, 0xe9, },
+  {  6, 0xfc, 0x73, 0x20, },
+  {  7, 0xfc, 0x61, 0x20, },
+  {  8, 0xfc, 0xf4, 0xe5, },
+  {  9, 0xfc, 0x73, 0xf4, },
+  { 10, 0xfc, 0x20, 0x6d, },
+  { 11, 0xfc, 0xe5, 0x73, },
+  { 12, 0xfc, 0x73, 0x61, },
+  { 13, 0xfc, 0x67, 0xe5, },
+  { 14, 0xfc, 0x94, 0x2f, },
+  { 15, 0xfc, 0x94, 0x2f, },
+//cc_count 16 - "Line 2 for darth vadar",
+  {  0, 0xfc, 0x94, 0xae, },
+  {  1, 0xfc, 0x94, 0x20, },
+  {  2, 0xfc, 0x91, 0x40, },
+  {  3, 0xfc, 0x4c, 0xe9, },
+  {  4, 0xfc, 0x6e, 0xe5, },
+  {  5, 0xfc, 0x20, 0x32, },
+  {  6, 0xfc, 0x20, 0xe6, },
+  {  7, 0xfc, 0xef, 0xf2, },
+  {  8, 0xfc, 0x20, 0x64, },
+  {  9, 0xfc, 0x61, 0xf2, },
+  { 10, 0xfc, 0xf4, 0x68, },
+  { 11, 0xfc, 0x20, 0x76, },
+  { 12, 0xfc, 0x61, 0x64, },
+  { 13, 0xfc, 0x61, 0xf2, },
+  { 14, 0xfc, 0x94, 0x2f, },
+  { 15, 0xfc, 0x94, 0x2f, },
+//cc_count 20 - "What in the word are we doing"
+  {  0, 0xfc, 0x94, 0xae, },
+  {  1, 0xfc, 0x94, 0x20, },
+  {  2, 0xfc, 0x91, 0x40, },
+  {  3, 0xfc, 0x57, 0x68, },
+  {  4, 0xfc, 0x61, 0xf4, },
+  {  5, 0xfc, 0x20, 0xe9, },
+  {  6, 0xfc, 0x6e, 0x20, },
+  {  7, 0xfc, 0xf4, 0x68, },
+  {  8, 0xfc, 0xe5, 0x20, },
+  {  9, 0xfc, 0xf7, 0xef, },
+  { 10, 0xfc, 0xf2, 0x64, },
+  { 11, 0xfc, 0x20, 0x61, },
+  { 12, 0xfc, 0xf2, 0xe5, },
+  { 13, 0xfc, 0x20, 0xf7, },
+  { 14, 0xfc, 0xe5, 0x20, },
+  { 15, 0xfc, 0x64, 0xef, },
+  { 16, 0xfc, 0xe9, 0x6e, },
+  { 17, 0xfc, 0x67, 0x80, },
+  { 18, 0xfc, 0x94, 0x2f, },
+  { 19, 0xfc, 0x94, 0x2f, },
+//cc_count 16 - "Brought to you by LTN"
+  {  0, 0xfc, 0x94, 0xae, },
+  {  1, 0xfc, 0x94, 0x20, },
+  {  2, 0xfc, 0x91, 0x40, },
+  {  3, 0xfc, 0xc2, 0xf2, },
+  {  4, 0xfc, 0xef, 0x75, },
+  {  5, 0xfc, 0x67, 0x68, },
+  {  6, 0xfc, 0xf4, 0x20, },
+  {  7, 0xfc, 0xf4, 0xef, },
+  {  8, 0xfc, 0x20, 0x79, },
+  {  9, 0xfc, 0xef, 0x75, },
+  { 10, 0xfc, 0x20, 0x62, },
+  { 11, 0xfc, 0x79, 0x20, },
+  { 12, 0xfc, 0x4c, 0x54, },
+  { 13, 0xfc, 0xce, 0x80, },
+  { 14, 0xfc, 0x94, 0x2f, },
+  { 15, 0xfc, 0x94, 0x2f, },
+};
+size_t captionarrcount = sizeof(captionarr) / sizeof(captionarr[0]);
+static int captionarridx = 0;
+
+obe_coded_frame_t *create_fake_caption_frame(obe_encoder_t *encoder, obe_coded_frame_t *vf)
+{
+    /* Dribble out two tuples per encoded frame.
+        * This is specific to timing for 1080i (which has two tuples)
+        */
+    /* Insert a fake caption message in a new seperate SEI with the previous pts */
+    int blen = 64;
+    obe_coded_frame_t *caption_frame = new_coded_frame(encoder->output_stream_id, blen);
+    memset(caption_frame->data, 0, blen);
+    caption_frame->pts                      = vf->pts - 1;
+    caption_frame->real_pts                 = vf->real_pts - 1;
+    caption_frame->real_dts                 = vf->real_dts - 1;
+    caption_frame->cpb_initial_arrival_time = vf->cpb_initial_arrival_time;
+    caption_frame->cpb_final_arrival_time   = vf->cpb_final_arrival_time;
+    caption_frame->random_access            = 1;
+
+// 2 tuples needed for 1080i, for 1080i only. This is hardcoded
+    uint8_t *dst = caption_frame->data;
+    *(dst++) = 0x00;
+    *(dst++) = 0x00;
+    *(dst++) = 0x00;
+    *(dst++) = 0x01;
+    *(dst++) = 0x06; // SEI
+    *(dst++) = USER_DATA_AVC_REGISTERED_ITU_T35;
+    *(dst++) = 19; // length
+    *(dst++) = 0xb5;
+    *(dst++) = 0x00;
+    *(dst++) = 0x31;
+    *(dst++) = 'G';
+    *(dst++) = 'A';
+    *(dst++) = '9';
+    *(dst++) = '4';
+    *(dst++) = 0x03; // CEA608 captions
+    *(dst++) = 0x40 | 2; // new cc count = 2  
+    *(dst++) = 0;   
+    *(dst++) = captionarr[ captionarridx ][1];
+    *(dst++) = captionarr[ captionarridx ][2];
+    *(dst++) = captionarr[ captionarridx ][3];
+    if (++captionarridx == captionarrcount) {
+        captionarridx = 0;
+    }
+    *(dst++) = captionarr[ captionarridx ][1];
+    *(dst++) = captionarr[ captionarridx ][2];
+    *(dst++) = captionarr[ captionarridx ][3];
+    if (++captionarridx == captionarrcount) {
+        captionarridx = 0;
+    }
+
+    *(dst++) = 0xfc;
+    *(dst++) = 0x80;
+    *(dst++) = 0x80;
+    *(dst++) = 0x80;
+
+#if 0
+    for (int i = 0; i < 30; i++) {
+        printf("%02x ", caption_frame->data[i]);
+    }
+    printf("\n");
+#endif
+
+    return caption_frame;
+}
+#endif // INJECT_FAKE_1080i_CAPTIONS
 
 #define MESSAGE_PREFIX "[x264]: "
 #define DEBUG_CODEC_TIMING 0
@@ -435,6 +579,9 @@ static void *x264_start_encoder( void *ptr )
     float buffer_fill;
     obe_raw_frame_t *raw_frame;
     obe_coded_frame_t *coded_frame;
+#if INJECT_FAKE_1080i_CAPTIONS
+    obe_coded_frame_t *caption_frame = NULL;
+#endif
     int64_t last_raw_frame_pts = 0;
     int64_t current_raw_frame_pts = 0;
     int upstream_signal_lost = 0;
@@ -1207,6 +1354,10 @@ if (fh)
             if (g_x264_nal_debug & 0x04)
                 coded_frame_print(coded_frame);
 
+#if INJECT_FAKE_1080i_CAPTIONS
+            caption_frame = create_fake_caption_frame(encoder, coded_frame);
+#endif
+
             if (opaque->metadata.count > 0) {
                 /* We need to process any associated metadata before we destroy the frame. */
 
@@ -1236,6 +1387,12 @@ if (fh)
                 serialize_coded_frame(coded_frame);
 #endif
                 add_to_queue( &h->mux_queue, coded_frame );
+#if INJECT_FAKE_1080i_CAPTIONS
+                if (caption_frame) {
+                    caption_frame->arrival_time = arrival_time;
+                    add_to_queue(&h->mux_queue, caption_frame);
+                }
+#endif
                 //printf("\n Encode Latency %"PRIi64" \n", obe_mdate() - coded_frame->arrival_time );
             }
             else {
@@ -1243,6 +1400,11 @@ if (fh)
                 serialize_coded_frame(coded_frame);
 #endif
                 add_to_queue( &h->enc_smoothing_queue, coded_frame );
+#if INJECT_FAKE_1080i_CAPTIONS
+                if (caption_frame) {
+                    add_to_queue(&h->enc_smoothing_queue, caption_frame);
+                }
+#endif
             }
             codec_metadata_free(pic_out.opaque);
 
