@@ -46,8 +46,12 @@
  */
 int g_filter_audio_effect_pcm = 0;
 
+/* Enable to run nielsen demonstration watermarking, only for one channel, proof of concept */
 #define NIELSEN_GLUE 0
+
 #if NIELSEN_GLUE
+#include <ltn-nielsen.h>
+void *g_nielsen_ctx = NULL;
 int g_filter_audio_save_payload = 0;
 #endif
 
@@ -299,6 +303,23 @@ static void applyGain(obe_output_stream_t *output_stream, obe_raw_frame_t *rf, d
 #if NIELSEN_GLUE
 static void nielsenWatermark(obe_aud_filter_params_t *filter_params, obe_output_stream_t *output_stream, obe_raw_frame_t *rf, int outputStreamNr)
 {
+    int ret;
+
+/* TODO: This totally breaks when we have more than one audio stream, fix it with multiple handles */
+    if (g_nielsen_ctx == NULL) {
+        ret = ltn_nielsen_alloc(&g_nielsen_ctx, "../../nielsensdk/nielsensdk.lic");
+        if (ret < 0) {
+            fprintf(stderr, MODULE_PREFIX "Unable to initialize nielsen framework\n");
+            return;
+        }
+
+        ret = ltn_nielsen_encoding_start(g_nielsen_ctx, 0);
+        if (ret < 0) {
+            fprintf(stderr, MODULE_PREFIX "Unable to start nielsen framework\n");
+            return;
+        }
+    }
+
     static int limit = 0;
     static int idx = 0;
     if (g_filter_audio_save_payload > 0) {
@@ -307,27 +328,31 @@ static void nielsenWatermark(obe_aud_filter_params_t *filter_params, obe_output_
         g_filter_audio_save_payload = 0;
     }
 
-    if (idx < limit) {
-        int num_channels = av_get_channel_layout_nb_channels(output_stream->channel_layout);
+    int num_channels = av_get_channel_layout_nb_channels(output_stream->channel_layout);
+    int blen = rf->audio_frame.num_samples * num_channels * 4;
+    unsigned char *buf = malloc(blen);
+    if (!buf)
+        return;
 
+    /* Turn planar s32le into interleaved s16le */
+    int32_t *l = (int32_t *)rf->audio_frame.audio_data[0];
+    int32_t *r = (int32_t *)rf->audio_frame.audio_data[1];
+    uint16_t *p = (uint16_t *)buf;
+    for (int i = 0; i < rf->audio_frame.num_samples; i++) {
+	int32_t L = *(l++);
+	int32_t R = *(r++);
+        //*(p++) = *(l++);
+        //*(p++) = *(r++);
+        *(p++) = (uint16_t)(L >> 16);
+        *(p++) = (uint16_t)(R >> 16);
+    }
+
+    if (idx < limit) {
         char fn[64];
         sprintf(fn, "/tmp/audio-stream%02d-ch%02d-%08d.bin",
             outputStreamNr,
             num_channels, idx++);
 
-        int blen = rf->audio_frame.num_samples * num_channels * 4;
-        unsigned char *buf = malloc(blen);
-        if (!buf)
-            return;
-
-        /* Turn planar into interleaved */
-        int32_t *l = (int32_t *)rf->audio_frame.audio_data[0];
-        int32_t *r = (int32_t *)rf->audio_frame.audio_data[1];
-        int32_t *p = (int32_t *)buf;
-        for (int i = 0; i < rf->audio_frame.num_samples; i++) {
-            *(p++) = *(l++);
-            *(p++) = *(r++);
-        }
 
         FILE *fh = fopen(fn , "wb");
         if (fh) {
@@ -335,9 +360,34 @@ static void nielsenWatermark(obe_aud_filter_params_t *filter_params, obe_output_
             fwrite(buf, 1, blen, fh);
             fclose(fh);
         }
-
-        free(buf);
     }
+
+    int channels = num_channels;
+    int depthBytes = 16 / 8;
+    int samples = rf->audio_frame.num_samples;
+    int strideBytes = channels * depthBytes;
+    ret = ltn_nielsen_write_blocking(g_nielsen_ctx, 0, buf, blen / 2, channels, samples, depthBytes * 8, strideBytes);
+    if (ret < 0) {
+        fprintf(stderr, MODULE_PREFIX "Unable to send to nielsen framework\n");
+    }
+
+    memset(buf, 0, blen);
+
+    ret = ltn_nielsen_read(g_nielsen_ctx, 0, buf, blen / 2);
+    if (ret > 0) {
+            //printf("Receiving 0x%x bytes from nielsen\n", ret);
+    }
+
+    /* interleaved s16le back to planar s32le */
+    l = (int32_t *)rf->audio_frame.audio_data[0];
+    r = (int32_t *)rf->audio_frame.audio_data[1];
+    p = (uint16_t *)buf;
+    for (int i = 0; i < samples; i++) {
+        *(l++) = (int32_t)*(p++) << 16;
+        *(r++) = (int32_t)*(p++) << 16;
+    }
+
+    free(buf);
 }
 #endif
 

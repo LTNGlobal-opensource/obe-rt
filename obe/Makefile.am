@@ -29,6 +29,7 @@ LDFLAGS += -ltwolame -lmpegts -lstdc++ -ldl -lzvbi /usr/lib64/libreadline.a -lcu
 LDFLAGS += -lcurl
 LDFLAGS += -lltnsdi
 LDFLAGS += -ljson-c
+#LDFLAGS += -lltnnielsen
 
 if LIBX265
 LDFLAGS += -lx265
