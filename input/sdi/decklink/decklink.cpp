@@ -1066,6 +1066,7 @@ int           g_decklink_record_audio_buffers = 0;
 
 int           g_decklink_render_walltime = 0;
 int           g_decklink_render_timecode = 0;
+int           g_decklink_render_framecount = 0;
 int           g_decklink_inject_scte104_preroll6000 = 0;
 int           g_decklink_inject_scte104_fragmented = 0;
 
@@ -1581,6 +1582,20 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             decklink_ctx->timecode.seconds,
             decklink_ctx->timecode.frames);
         V210_painter_draw_ascii_at(&painter, 0, 3, tc);
+    }
+    if (g_decklink_render_framecount && videoframe) {
+	static uint64_t frameCount = 0;
+	frameCount++;
+	struct timeval tv;
+	gettimeofday(&tv, 0);
+
+	char lbl[64];
+	sprintf(lbl, "%d.%06d: %" PRIu64 "", (int)tv.tv_sec, (int)tv.tv_usec, frameCount);
+
+        videoframe->GetBytes(&frame_bytes);
+        struct V210_painter_s painter;
+        V210_painter_reset(&painter, (unsigned char *)frame_bytes, width, height, stride, 0);
+	V210_painter_draw_ascii_at(&painter, 0, 4, lbl);
     }
     if (sfc && (sfc < decklink_opts_->audio_sfc_min || sfc > decklink_opts_->audio_sfc_max)) {
         if (videoframe && (videoframe->GetFlags() & bmdFrameHasNoInputSource) == 0) {
