@@ -78,6 +78,11 @@ extern "C"
 #include "histogram.h"
 #include "ltn_ws.h"
 
+#if HAVE_LIBKLSMPTE2064_KLSMPTE2064_H
+#include <ctype.h> // isprint
+#include <libklsmpte2064/klsmpte2064.h>
+#endif
+
 #define container_of(ptr, type, member) ({          \
     const typeof(((type *)0)->member)*__mptr = (ptr);    \
              (type *)((char *)__mptr - offsetof(type, member)); })
@@ -267,6 +272,10 @@ typedef struct
         int32_t drop_frame;
         int32_t present;
     } timecode;
+
+#if HAVE_LIBKLSMPTE2064_KLSMPTE2064_H
+    void *smpte2064_hdl = NULL;
+#endif
 
 } decklink_ctx_t;
 
@@ -597,6 +606,12 @@ public:
     virtual HRESULT STDMETHODCALLTYPE VideoInputFormatChanged(BMDVideoInputFormatChangedEvents events, IDeckLinkDisplayMode *p_display_mode, BMDDetectedVideoInputFormatFlags)
     {
         {
+#if HAVE_LIBKLSMPTE2064_KLSMPTE2064_H
+            if (decklink_opts_->decklink_ctx.smpte2064_hdl) {
+                klsmpte2064_context_free(decklink_opts_->decklink_ctx.smpte2064_hdl);
+                decklink_opts_->decklink_ctx.smpte2064_hdl = NULL;
+            }
+#endif
             BMDDisplayMode mode_id = p_display_mode->GetDisplayMode();
 
             static BMDDisplayMode last_mode_id = 0xffffffff;
@@ -715,6 +730,7 @@ public:
     virtual HRESULT STDMETHODCALLTYPE VideoInputFrameArrived(IDeckLinkVideoInputFrame*, IDeckLinkAudioInputPacket*);
     HRESULT STDMETHODCALLTYPE noVideoInputFrameArrived(IDeckLinkVideoInputFrame*, IDeckLinkAudioInputPacket*);
     HRESULT STDMETHODCALLTYPE timedVideoInputFrameArrived(IDeckLinkVideoInputFrame*, IDeckLinkAudioInputPacket*);
+    HRESULT STDMETHODCALLTYPE processSMPTE2064(IDeckLinkVideoInputFrame *, IDeckLinkAudioInputPacket *);
 
 private:
     pthread_mutex_t ref_mutex_;
@@ -1154,6 +1170,82 @@ HRESULT DeckLinkCaptureDelegate::noVideoInputFrameArrived(IDeckLinkVideoInputFra
 	return S_OK;
 }
 
+HRESULT DeckLinkCaptureDelegate::processSMPTE2064(IDeckLinkVideoInputFrame *videoframe, IDeckLinkAudioInputPacket *audioframe)
+{
+    decklink_ctx_t *decklink_ctx = &decklink_opts_->decklink_ctx;
+
+#if HAVE_LIBKLSMPTE2064_KLSMPTE2064_H
+    if (videoframe) {
+        if (decklink_ctx->smpte2064_hdl == NULL) {
+
+            if (klsmpte2064_context_alloc(&decklink_ctx->smpte2064_hdl,
+                COLORSPACE_V210,
+                1, /* Progressive */
+                videoframe->GetWidth(),
+                videoframe->GetHeight(),
+                videoframe->GetRowBytes(),
+                10) < 0)
+            {
+                printf(PREFIX "Error instantiating SMPTE2064 framework, continuing\n");
+                printf(PREFIX "w %ld h%ld rb %ld\n", videoframe->GetWidth(), videoframe->GetHeight(), videoframe->GetRowBytes());
+                return S_OK;
+            }
+        }
+
+        const uint8_t *v = NULL;
+        videoframe->GetBytes((void **)&v);
+
+        if (klsmpte2064_video_push(decklink_ctx->smpte2064_hdl, v) < 0) {
+            printf(PREFIX " Error pushing SMPTE2064 framee\n");
+        }
+    }
+#if 0
+    if (audioframe && decklink_ctx->smpte2064_hdl) {
+
+        /* Audio is interleaved natively as AV_SAMPLE_FMT_S32.
+         * That's not great because I built the SMPTE 2064 framework to be planar.
+         * We'll add support to the 2064 framework to take interleaved.
+         */
+        int32_t *a = NULL;
+        audioframe->GetBytes((void **)&a);
+
+        const int16_t *planes[] = { (int16_t *)&a };
+
+        if (klsmpte2064_audio_push(decklink_ctx->smpte2064_hdl,
+            AUDIOTYPE_STEREO_S32_CH16_DECKLINK,
+            59.94,
+            &planes[0],
+            1,
+            audioframe->GetSampleFrameCount()) < 0)
+        {
+            printf(PREFIX " Error pushing SMPTE2064 frame\n");
+        }
+    }
+#endif
+
+    if (decklink_ctx->smpte2064_hdl) {
+        /* Get the fingerprint */
+        uint8_t section[512];
+        uint32_t usedLength = 0;
+        if (klsmpte2064_encapsulation_pack(decklink_ctx->smpte2064_hdl, section, sizeof(section), &usedLength) == 0) {
+            printf(PREFIX "section %4d: ", usedLength);
+            for (uint32_t i = 0; i < usedLength; i++) {
+                printf("%02x ", section[i]);
+            }
+            printf("\n");
+            printf(PREFIX "section %4d: ", usedLength);
+            for (uint32_t i = 0; i < usedLength; i++) {
+                printf("  %c", isprint(section[i]) ? section[i] : '.');
+            }
+            printf("\n");
+        }
+    }
+
+#endif
+
+    return S_OK;
+}
+
 HRESULT DeckLinkCaptureDelegate::VideoInputFrameArrived( IDeckLinkVideoInputFrame *videoframe, IDeckLinkAudioInputPacket *audioframe )
 {
 	decklink_ctx_t *decklink_ctx = &decklink_opts_->decklink_ctx;
@@ -1167,6 +1259,8 @@ HRESULT DeckLinkCaptureDelegate::VideoInputFrameArrived( IDeckLinkVideoInputFram
 	ltn_histogram_interval_update(decklink_ctx->callback_hdl);
 
 	avmetadata_reset(&decklink_ctx->metadataVANC);
+
+    processSMPTE2064(videoframe, audioframe);
 
 	ltn_histogram_sample_begin(decklink_ctx->callback_duration_hdl);
 	HRESULT hr = timedVideoInputFrameArrived(videoframe, audioframe);
