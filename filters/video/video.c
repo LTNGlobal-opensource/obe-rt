@@ -40,8 +40,10 @@ char g_filter_video_fullsize_jpg_filename[256] = { 0 };
 #include "convert.h"
 
 #if HAVE_LIBKLSMPTE2064_KLSMPTE2064_H
+#if 0
 #include <ctype.h> // isprint
 #include <libklsmpte2064/klsmpte2064.h>
+#endif
 #endif
 
 #define DO_CRYSTAL_FP 0
@@ -757,7 +759,7 @@ static void *start_filter_video( void *ptr )
     time_t lastJPG = 0;
 
 #if HAVE_LIBKLSMPTE2064_KLSMPTE2064_H
-    void *smpte2064_hdl = NULL;
+    //void *smpte2064_hdl = NULL;
 #endif
 
 #if DO_CRYSTAL_FP
@@ -911,6 +913,7 @@ static void *start_filter_video( void *ptr )
         }
 
 #if HAVE_LIBKLSMPTE2064_KLSMPTE2064_H
+#if 0
         if (smpte2064_hdl == NULL) {
             obe_image_t *i = &raw_frame->img;
             if (klsmpte2064_context_alloc(&smpte2064_hdl, 1, 1, i->width, i->height, i->stride[0], 8) < 0) {
@@ -921,6 +924,7 @@ static void *start_filter_video( void *ptr )
             if (klsmpte2064_video_push(smpte2064_hdl, raw_frame->img.plane[0]) < 0) {
                 printf(PREFIX " Error pushing SMPTE2064 framee\n");
             } else {
+#if 0
                 /* Get the fingerprint */
                 uint8_t section[512];
                 uint32_t usedLength = 0;
@@ -936,9 +940,10 @@ static void *start_filter_video( void *ptr )
                     }
                     printf("\n");
                 }
+#endif
             }
-
         }
+#endif
 #endif
 
 #if DO_CRYSTAL_FP
@@ -964,10 +969,12 @@ end:
     }
 
 #if HAVE_LIBKLSMPTE2064_KLSMPTE2064_H
+#if 0
     if (smpte2064_hdl) {
         klsmpte2064_context_free(smpte2064_hdl);
         smpte2064_hdl = NULL;
     }
+#endif
 #endif
     free( filter_params );
 
