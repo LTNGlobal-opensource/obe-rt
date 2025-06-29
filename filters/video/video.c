@@ -916,7 +916,7 @@ static void *start_filter_video( void *ptr )
 #if 0
         if (smpte2064_hdl == NULL) {
             obe_image_t *i = &raw_frame->img;
-            if (klsmpte2064_context_alloc(&smpte2064_hdl, 1, 1, i->width, i->height, i->stride[0], 8) < 0) {
+            if (klsmpte2064_context_alloc(&smpte2064_hdl, COLORSPACE_YUV420P, 1, i->width, i->height, i->stride[0], 8) < 0) {
                 printf(PREFIX " Error instantiating SMPTE2064 framework, continuing\n");
             }
         } else {
