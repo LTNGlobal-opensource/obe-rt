@@ -34,6 +34,9 @@ LDFLAGS += -ljson-c
 if LIBX265
 LDFLAGS += -lx265
 endif
+if LIBKLSMPTE2064
+LDFLAGS += -lklsmpte2064
+endif
 if LIBVA
 LDFLAGS += -L../../vaapi/libva-utils/common/.libs
 LDFLAGS += -lva -lva-display -llzma

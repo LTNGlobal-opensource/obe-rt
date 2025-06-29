@@ -39,6 +39,11 @@ char g_filter_video_fullsize_jpg_filename[256] = { 0 };
 
 #include "convert.h"
 
+#if HAVE_LIBKLSMPTE2064_KLSMPTE2064_H
+#include <ctype.h> // isprint
+#include <libklsmpte2064/klsmpte2064.h>
+#endif
+
 #define DO_CRYSTAL_FP 0
 #if DO_CRYSTAL_FP
 /* Crystall CC */
@@ -751,6 +756,10 @@ static void *start_filter_video( void *ptr )
     const AVPixFmtDescriptor *pfd;
     time_t lastJPG = 0;
 
+#if HAVE_LIBKLSMPTE2064_KLSMPTE2064_H
+    void *smpte2064_hdl = NULL;
+#endif
+
 #if DO_CRYSTAL_FP
     struct filter_analyze_fp_ctx *fp_ctx = NULL;
     filter_analyze_fp_alloc(&fp_ctx);
@@ -901,6 +910,37 @@ static void *start_filter_video( void *ptr )
             }
         }
 
+#if HAVE_LIBKLSMPTE2064_KLSMPTE2064_H
+        if (smpte2064_hdl == NULL) {
+            obe_image_t *i = &raw_frame->img;
+            if (klsmpte2064_context_alloc(&smpte2064_hdl, 1, 1, i->width, i->height, i->stride[0], 8) < 0) {
+                printf(PREFIX " Error instantiating SMPTE2064 framework, continuing\n");
+            }
+        } else {
+
+            if (klsmpte2064_video_push(smpte2064_hdl, raw_frame->img.plane[0]) < 0) {
+                printf(PREFIX " Error pushing SMPTE2064 framee\n");
+            } else {
+                /* Get the fingerprint */
+                uint8_t section[512];
+                uint32_t usedLength = 0;
+                if (klsmpte2064_encapsulation_pack(smpte2064_hdl, section, sizeof(section), &usedLength) == 0) {
+                    printf("section %4d: ", usedLength);
+                    for (int i = 0; i < usedLength; i++) {
+                        printf("%02x ", section[i]);
+                    }
+                    printf("\n");
+                    printf("section %4d: ", usedLength);
+                    for (int i = 0; i < usedLength; i++) {
+                        printf("  %c", isprint(section[i]) ? section[i] : '.');
+                    }
+                    printf("\n");
+                }
+            }
+
+        }
+#endif
+
 #if DO_CRYSTAL_FP
 	filter_analyze_fp_process(fp_ctx, raw_frame);
 #endif
@@ -923,6 +963,12 @@ end:
         free( vfilt );
     }
 
+#if HAVE_LIBKLSMPTE2064_KLSMPTE2064_H
+    if (smpte2064_hdl) {
+        klsmpte2064_context_free(smpte2064_hdl);
+        smpte2064_hdl = NULL;
+    }
+#endif
     free( filter_params );
 
     if (vfilt->fc_ctx) {
