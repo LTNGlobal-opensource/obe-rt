@@ -2979,7 +2979,14 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
         }
     }
 #endif
+#if BLACKMAGIC_DECKLINK_API_VERSION > 0x0c080000 /* 12.8 or higher */
+    if (decklink_ctx->isHalfDuplex == 0) {
+        decklink_ctx->isHalfDuplex = 1;
+        fprintf(stderr, "[decklink] isHalfDuplex = %d, forcing to 1\n", decklink_ctx->isHalfDuplex);
+    }
 #endif
+#endif
+    fprintf(stderr, "[decklink] isHalfDuplex = %d\n", decklink_ctx->isHalfDuplex);
 
     /* Set up the video and audio sources. */
     if( decklink_ctx->p_card->QueryInterface( IID_IDeckLinkConfiguration, (void**)&decklink_ctx->p_config ) != S_OK )
