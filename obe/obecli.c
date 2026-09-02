@@ -1093,7 +1093,10 @@ extern char g_video_encoder_tuning_name[64];
                 }
                 if (profile) {
                     parse_enum_value( profile, x264_profile_names, &cli.avc_profile );
-//                    avc_param->i_profile = cli.avc_profile;
+#if __APPLE__
+#else
+                    avc_param->i_profile = cli.avc_profile;
+#endif
                 }
 
 #if 0
