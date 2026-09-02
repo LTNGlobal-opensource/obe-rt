@@ -400,7 +400,9 @@ int64_t last_video_dts = 0;
 /* For a given video pts, count how many items one the queue are older and newer than this value */
 static void verify_audio_pts_queue_content(obe_t *h, int64_t videoDTS)
 {
+#if 0
     int older = 0, newer = 0;
+#endif
     int64_t min_a_pts = 0xffffffffffLL;
     int64_t min_v_pts = 0xffffffffffLL;
     int64_t max_a_pts = 0;
@@ -413,10 +415,12 @@ static void verify_audio_pts_queue_content(obe_t *h, int64_t videoDTS)
                 min_v_pts = cf->pts;
             continue;
         }
+#if 0
         if (cf->pts <= videoDTS)
             older++;
         else
             newer++;
+#endif
 
         if (cf->pts < min_a_pts)
             min_a_pts = cf->pts;
