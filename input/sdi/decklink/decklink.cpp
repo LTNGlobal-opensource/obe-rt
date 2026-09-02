@@ -373,6 +373,11 @@ static void endian_flip_array(uint8_t *buf, int bufSize)
 
 static int _vancparse(struct klvanc_context_s *ctx, uint8_t *sec, int byteCount, int lineNr)
 {
+    if (byteCount < 0 || (byteCount / 2) > LIBKLVANC_PACKET_MAX_PAYLOAD) {
+        fprintf(stderr, "%s() byteCount %d exceeds max payload, rejecting\n", __func__, byteCount);
+        return -1;
+    }
+
     unsigned short *arr = (unsigned short *)calloc(1, LIBKLVANC_PACKET_MAX_PAYLOAD * sizeof(unsigned short));
     if (arr == NULL)
         return -1;
@@ -2325,25 +2330,42 @@ static void close_card( decklink_opts_t *decklink_opts )
 {
     decklink_ctx_t *decklink_ctx = &decklink_opts->decklink_ctx;
 
+    /* Null out each resource after releasing/freeing it so that a second
+     * call to close_card() on the same decklink_opts_t (e.g. once from
+     * open_card()'s own failure path and again via the pthread cleanup
+     * handler in open_input()) is a harmless no-op instead of a
+     * double-free/use-after-free. */
+
     if( decklink_ctx->p_config )
+    {
         decklink_ctx->p_config->Release();
+        decklink_ctx->p_config = NULL;
+    }
 
     if( decklink_ctx->p_input )
     {
         decklink_ctx->p_input->StopStreams();
         decklink_ctx->p_input->Release();
+        decklink_ctx->p_input = NULL;
     }
 
     if( decklink_ctx->p_card )
+    {
         decklink_ctx->p_card->Release();
+        decklink_ctx->p_card = NULL;
+    }
 
     if( decklink_ctx->p_delegate )
+    {
         decklink_ctx->p_delegate->Release();
+        decklink_ctx->p_delegate = NULL;
+    }
 
     if( decklink_ctx->codec )
     {
         avcodec_close( decklink_ctx->codec );
         av_free( decklink_ctx->codec );
+        decklink_ctx->codec = NULL;
     }
 
     if (decklink_ctx->vanchdl) {
