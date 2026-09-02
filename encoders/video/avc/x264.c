@@ -575,6 +575,9 @@ static void *x264_start_encoder( void *ptr )
     x264_nal_t *nal;
     int i_nal, frame_size = 0;
     int64_t pts = 0, arrival_time = 0, frame_duration, buffer_duration;
+#if __APPLE__
+    buffer_duration = 1;
+#endif
 
     float buffer_fill;
     obe_raw_frame_t *raw_frame;
@@ -773,7 +776,9 @@ printf("param.rc.i_vbv_buffer_size = %d\n", param.rc.i_vbv_buffer_size);
 
     printf(MESSAGE_PREFIX "lookahead = %d\n", enc_params->avc_param.rc.i_lookahead);
     printf(MESSAGE_PREFIX "open_gop = %d\n", enc_params->avc_param.b_open_gop);
+#if __LINUX__
     printf(MESSAGE_PREFIX "profile = %d\n", enc_params->avc_param.i_profile);
+#endif
     printf(MESSAGE_PREFIX "level_idc = %d\n", enc_params->avc_param.i_level_idc);
     x264_encoder_parameters( s, &enc_params->avc_param );
 
@@ -1012,6 +1017,12 @@ printf("param.rc.i_vbv_buffer_size = %d\n", param.rc.i_vbv_buffer_size);
                 else
                     buffer_fill = (float)(-1 * last_frame_delta)/buffer_duration;
 
+#if __APPLE__
+               if (buffer_fill) {
+                   printf("%s: buffer fill\n", __func__);
+               }
+#endif
+
 #if X264_BUILD < 148
                 x264_speedcontrol_sync( s, buffer_fill, enc_params->avc_param.sc.i_buffer_size, 1 );
 #endif
@@ -1121,6 +1132,7 @@ printf("param.rc.i_vbv_buffer_size = %d\n", param.rc.i_vbv_buffer_size);
 	}
 #else
 
+#if __LINUX__
         if (h->enable_timecode && raw_frame->timecode.present) {
             /* Timecode handling */
             obe_timecode_update(&tc,
@@ -1159,7 +1171,7 @@ printf("param.rc.i_vbv_buffer_size = %d\n", param.rc.i_vbv_buffer_size);
             //printf("sending frame#%2d to encoder\n", pic.timecode[0].i_frame);
         }
         /* End - Timecode handling */
-
+#endif
 struct timeval begin, end, diff;
 gettimeofday(&begin, NULL);
         frame_size = x264_encoder_encode( s, &nal, &i_nal, &pic, &pic_out );
