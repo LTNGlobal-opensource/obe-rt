@@ -148,7 +148,10 @@ static int _srt_open(hnd_t *p_handle, obe_udp_opts_t *udp_opts)
      * self adapts by allocating more slots. Calculate for 40mbps, a reasonable
      * default.
      */
-    throughput_hires_alloc(&p_srt->throughputHandle, ((40 * 1e6) / 8 ) / 1316);
+    if (throughput_hires_alloc(&p_srt->throughputHandle, ((40 * 1e6) / 8 ) / 1316) < 0) {
+        fprintf(stderr, "[srt] Unable to allocate throughput timer\n");
+        return -1;
+    }
 
     srt_startup();
 

@@ -3021,6 +3021,8 @@ static void _usage(const char *prog, int exitcode)
 int main( int argc, char **argv )
 {
     char *home_dir = getenv( "HOME" );
+    if( !home_dir )
+        home_dir = "/tmp";
     char *history_filename;
     char *prompt = "obecli> ";
     char *script = NULL;

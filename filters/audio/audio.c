@@ -82,10 +82,19 @@ static obe_raw_frame_t *obe_aud_filter_remap_samples(obe_output_stream_t *output
 #endif
 
     obe_raw_frame_t *nrf = new_raw_frame();
+    if (!nrf) {
+        syslog(LOG_ERR, "Malloc failed\n");
+        return NULL;
+    }
     memcpy(nrf, rf, sizeof(*rf));
 
     int l = nrf->audio_frame.num_channels * nrf->audio_frame.num_samples * 4;
     nrf->audio_frame.audio_data[0] = (uint8_t *)malloc(l);
+    if (!nrf->audio_frame.audio_data[0]) {
+        syslog(LOG_ERR, "Malloc failed\n");
+        free(nrf);
+        return NULL;
+    }
 
     memcpy(nrf->audio_frame.audio_data[0], rf->audio_frame.audio_data[0], l);
 
@@ -608,15 +617,19 @@ printf(" split_raw_frame->audio_frame.linesize %d", split_raw_frame->audio_frame
                 /* Copy samples for each channel into a new buffer, so each downstream encoder can
                  * compress the channels the user has selected via sdi_audio_pair.
                  */
-                av_samples_copy(split_raw_frame->audio_frame.audio_data, /* dst */
-                                &rf->audio_frame.audio_data[((output_stream->sdi_audio_pair - 1) << 1) + output_stream->mono_channel], /* src */
-                                0, /* dst offset */
-                                0, /* src offset */
-                                split_raw_frame->audio_frame.num_samples,
-                                num_channels,
-                                split_raw_frame->audio_frame.sample_fmt);
-                free(rf->audio_frame.audio_data[0]);
-                free(rf);
+                if (rf) {
+                    av_samples_copy(split_raw_frame->audio_frame.audio_data, /* dst */
+                                    &rf->audio_frame.audio_data[((output_stream->sdi_audio_pair - 1) << 1) + output_stream->mono_channel], /* src */
+                                    0, /* dst offset */
+                                    0, /* src offset */
+                                    split_raw_frame->audio_frame.num_samples,
+                                    num_channels,
+                                    split_raw_frame->audio_frame.sample_fmt);
+                    free(rf->audio_frame.audio_data[0]);
+                    free(rf);
+                } else {
+                    syslog(LOG_ERR, "Audio remap failed, skipping\n");
+                }
             } else {
                 /* No audio remapping - the default typical use case */
                 /* Copy samples for each channel into a new buffer, so each downstream encoder can

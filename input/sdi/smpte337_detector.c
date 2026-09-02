@@ -44,6 +44,9 @@ struct smpte337_detector_s *smpte337_detector_alloc(smpte337_detector_callback c
 
 void smpte337_detector_free(struct smpte337_detector_s *ctx)
 {
+	if (!ctx)
+		return;
+
 	rb_free(ctx->rb);
 	free(ctx);
 }

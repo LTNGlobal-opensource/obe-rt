@@ -607,7 +607,8 @@ unsigned int toggleOutput = 1;
 				ctx->p_NDILib->NDIlib_recv_free_audio_v2(ctx->pNDI_recv, &audio_frame);
 				break;
 			case NDIlib_frame_type_metadata:
-				printf("Metadata content: %s\n", metadata.p_data);
+				if (metadata.p_data)
+					printf("Metadata content: %s\n", metadata.p_data);
 				ctx->p_NDILib->NDIlib_recv_free_metadata(ctx->pNDI_recv, &metadata);
 				break;
 			case NDIlib_frame_type_none:

@@ -338,6 +338,9 @@ static void callback__a_capture_cb_func(uint32_t u32DevId,
         vega_opts_t *opts = (vega_opts_t *)pv_user_arg;
 	//vega_ctx_t *ctx = &opts->ctx;
 
+        if (!st_frame_info || !st_input_info)
+                return;
+
         if (st_frame_info->u32BufSize == 0) {
                 if (st_input_info->eAudioState == API_VEGA3301_CAP_STATE_CAPTURING) {
                         printf(MODULE_PREFIX "[DEV%u:CH%d] audio state change to capturing, source signal recovery\n", u32DevId, eCh);
@@ -434,6 +437,9 @@ static void callback__process_video_coded_frame(API_VEGA330X_HEVC_CODED_PICT_T *
         vega_opts_t *opts = (vega_opts_t *)args;
 	//vega_ctx_t *ctx = &opts->ctx;
 
+        if (!p_pict)
+                return;
+
         for (unsigned int i = 0; i < p_pict->u32NalNum; i++) {
 
                 if (g_decklink_monitor_hw_clocks) {
@@ -484,6 +490,9 @@ static void callback__v_capture_cb_func(uint32_t u32DevId,
 	vega_ctx_t *ctx = &opts->ctx;
 
         API_VEGA330X_IMG_T img;
+
+        if (!st_frame_info || !st_input_info)
+                return;
 
         if (st_frame_info->u32BufSize == 0) {
                 if (st_input_info->eVideoState == API_VEGA3301_CAP_STATE_CAPTURING) {

@@ -127,6 +127,9 @@ void vega3311_video_avc_compressed_callback(API_VEGA_BQB_AVC_CODED_PICT_T *p_pic
         vega_opts_t *opts = (vega_opts_t *)args;
 	vega_ctx_t *ctx = &opts->ctx;
 
+        if (!p_pict)
+                return;
+
 #if LOCAL_DEBUG
         printf(MODULE_PREFIX "%s() recd AVC es video frames\n", __func__);
 #endif
@@ -226,6 +229,9 @@ void vega3311_video_hevc_compressed_callback(API_VEGA_BQB_HEVC_CODED_PICT_T *p_p
 {
         vega_opts_t *opts = (vega_opts_t *)args;
 	vega_ctx_t *ctx = &opts->ctx;
+
+        if (!p_pict)
+                return;
 
 #if LOCAL_DEBUG
         printf(MODULE_PREFIX "%s() recd HEVC es video frames\n", __func__);
@@ -438,6 +444,9 @@ void vega3311_video_capture_callback(uint32_t u32DevId,
 {
         vega_opts_t *opts = (vega_opts_t *)pv_user_arg;
 	vega_ctx_t *ctx = &opts->ctx;
+
+        if (!st_frame_info || !st_input_info)
+                return;
 
 #if LOCAL_DEBUG
         printf(MODULE_PREFIX "%s() recd raw video frame\n", __func__);

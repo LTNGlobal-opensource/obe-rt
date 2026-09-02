@@ -30,8 +30,10 @@ void avmetadata_clone(struct avmetadata_s *dst, struct avmetadata_s *src)
 	avmetadata_reset(dst);
 
 	for (int i = 0; i < src->count; i++) {
-		dst->array[i] = avmetadata_item_clone(src->array[i]);
-		dst->count++;
+		struct avmetadata_item_s *item = avmetadata_item_clone(src->array[i]);
+		if (!item)
+			continue;
+		dst->array[dst->count++] = item;
 	}
 }
 
@@ -75,6 +77,8 @@ struct avmetadata_item_s *avmetadata_item_alloc(int lengthBytes, enum avmetadata
 struct avmetadata_item_s *avmetadata_item_clone(struct avmetadata_item_s *src)
 {
 	struct avmetadata_item_s *dst = avmetadata_item_alloc(src->dataLengthAlloc, src->item_type);
+	if (!dst)
+		return NULL;
 
 	switch (src->item_type) {
 	case AVMETADATA_SECTION_SCTE35:

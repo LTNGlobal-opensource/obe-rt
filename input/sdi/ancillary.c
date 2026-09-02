@@ -282,6 +282,9 @@ int inject_708_cdp( obe_t *h, obe_raw_frame_t *raw_frame, uint8_t *cdp, int len)
 {
     obe_user_data_t *tmp2, *user_data;
 
+    if( !cdp || len <= 0 )
+        return -1;
+
     /* Return if user didn't select CEA-708 */
     if( !check_user_selected_non_display_data( h, CAPTIONS_CEA_708, USER_DATA_LOCATION_FRAME ) )
         return 0;

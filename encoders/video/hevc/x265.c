@@ -1061,6 +1061,10 @@ static void *x265_start_encoder( void *ptr )
 		 * for SCTE and other processing.
 		 */
 		struct opaque_ctx_s *ud = codec_metadata_alloc();
+		if (!ud) {
+			fprintf(stderr, MESSAGE_PREFIX " unable to allocate metadata context\n");
+			break;
+		}
 
 		/* convert obe_frame_t into x264 friendly struct.
 		 * Bundle up and incoming SEI etc, into the userdata context

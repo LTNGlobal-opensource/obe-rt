@@ -2730,6 +2730,9 @@ static void *avc_vaapi_start_encoder( void *ptr )
 		ctx->raw_frame_count++;
 		pthread_mutex_unlock(&ctx->encoder->queue.mutex);
 
+		if (!rf)
+			continue;
+
 #if LOCAL_DEBUG
 		printf(MESSAGE_PREFIX " popped raw_frame[%" PRIu64 "] -- pts %" PRIi64 "\n", ctx->raw_frame_count, rf->avfm.audio_pts);
 #endif
@@ -2765,6 +2768,11 @@ static void *avc_vaapi_start_encoder( void *ptr )
 			 *  V size += ((ctx->frame_width * ctx->frame_height) / 4)
 			 */
 			uint8_t *f = (uint8_t *)malloc(ctx->frame_width * 2 * ctx->frame_height);
+			if (!f) {
+				fprintf(stderr, MESSAGE_PREFIX " unable to allocate frame conversion buffer\n");
+				leave = 1;
+				continue;
+			}
 
 			uint8_t *dst_y = f;
 			uint8_t *dst_uv = f + (ctx->frame_width * ctx->frame_height);

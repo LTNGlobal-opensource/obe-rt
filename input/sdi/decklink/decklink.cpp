@@ -1626,7 +1626,7 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             snprintf(t, sizeof(t), "%s", ctime(&now));
             t[strlen(t) - 1] = 0;
             printf("%s -- Simulating video loss\n", t);
-            if (g_decklink_inject_frame_enable)
+            if (g_decklink_inject_frame_enable && videoframe)
                 return noVideoInputFrameArrived(videoframe, audioframe);
             else
                 videoframe = NULL;

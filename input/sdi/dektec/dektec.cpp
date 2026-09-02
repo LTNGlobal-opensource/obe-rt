@@ -521,10 +521,21 @@ static void deliver_video_frame(dektec_opts_t *opts, unsigned char *plane, int s
 		}
 
 		AVFrame *frame = av_frame_alloc();
+		if (!frame) {
+			fprintf(stderr, MODULE_PREFIX "Could not allocate AVFrame\n");
+			free(raw_frame);
+			break;
+		}
 		ctx->codec->width = opts->width;
 		ctx->codec->height = opts->height;
 
 		AVPacket *pkt = av_packet_alloc();
+		if (!pkt) {
+			fprintf(stderr, MODULE_PREFIX "Could not allocate AVPacket\n");
+			av_frame_free(&frame);
+			free(raw_frame);
+			break;
+		}
 		pkt->data = plane;
 		pkt->size = sizeBytes;
 

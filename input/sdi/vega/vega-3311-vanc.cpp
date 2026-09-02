@@ -621,6 +621,9 @@ void vega3311_vanc_callback(uint32_t u32DevId,
         vega_opts_t *opts = (vega_opts_t *)pv_user_arg;
         vega_ctx_t *ctx = &opts->ctx;
 
+        if (!st_frame_info || !st_input_info)
+                return;
+
         if (st_frame_info->u32BufSize == 0) {
                 if (st_input_info->eAncdState == API_VEGA3311_CAP_STATE_CAPTURING) {
                         printf(MODULE_PREFIX "[DEV%u:CH%d] anc state change to capturing, source signal recovery\n", u32DevId, eCh);

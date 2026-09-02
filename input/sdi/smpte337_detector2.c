@@ -199,6 +199,9 @@ struct smpte337_detector2_s *smpte337_detector2_alloc(smpte337_detector2_callbac
 
 void smpte337_detector2_free(struct smpte337_detector2_s *ctx)
 {
+	if (!ctx)
+		return;
+
 	_list_empty(ctx);
 	free(ctx);
 }
@@ -352,7 +355,7 @@ size_t smpte337_detector2_write(struct smpte337_detector2_s *ctx, uint8_t *buf,
 	uint32_t audioFrames, uint32_t sampleDepth, uint32_t channelsPerFrame,
 	uint32_t frameStrideBytes, uint32_t spanCount, struct avfm_s *avfm)
 {
-	if ((!buf) || (!audioFrames) || (!channelsPerFrame) || (!frameStrideBytes) ||
+	if ((!buf) || (!avfm) || (!audioFrames) || (!channelsPerFrame) || (!frameStrideBytes) ||
 		((sampleDepth != 16) && (sampleDepth != 32)) ||
 		(spanCount == 0) || (spanCount > channelsPerFrame)) {
 		return 0;

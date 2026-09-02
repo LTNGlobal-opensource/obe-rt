@@ -253,6 +253,13 @@ static void *bluefish_videoThreadFunc(void *p)
 	unsigned char *pVideoBuffer = (unsigned char *)valloc(ctx->frameSizeBytesVideo);
 	unsigned char *pVancBuffer = (unsigned char *)valloc(ctx->frameSizeBytesVanc);
 	unsigned char *pHancBuffer = (unsigned char *)valloc(ctx->frameSizeBytesHanc);
+	if (!pVideoBuffer || !pVancBuffer || !pHancBuffer) {
+		fprintf(stderr, MODULE_PREFIX "Malloc failed\n");
+		free(pVideoBuffer);
+		free(pVancBuffer);
+		free(pHancBuffer);
+		return NULL;
+	}
 	memset(pHancBuffer, 0, ctx->frameSizeBytesHanc);
 	memset(pVancBuffer, 0, ctx->frameSizeBytesVanc);
 
@@ -379,6 +386,11 @@ static void *bluefish_videoThreadFunc(void *p)
 			}
 
 			AVFrame *frame = avcodec_alloc_frame();
+			if (!frame) {
+				fprintf(stderr, MODULE_PREFIX "Could not allocate AVFrame\n");
+				free(raw_frame);
+				break;
+			}
 			ctx->codec->width = opts->width;
 			ctx->codec->height = opts->height;
 

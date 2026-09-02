@@ -353,6 +353,11 @@ static void encoder_wait( obe_t *h, int output_stream_id )
 {
     /* Wait for encoder to be ready */
     obe_encoder_t *encoder = get_encoder( h, output_stream_id );
+    if( !encoder )
+    {
+        syslog( LOG_ERR, "Unable to find encoder for output stream %d\n", output_stream_id );
+        return;
+    }
     pthread_mutex_lock( &encoder->queue.mutex );
     while( !encoder->is_ready )
         pthread_cond_wait( &encoder->queue.in_cv, &encoder->queue.mutex );
@@ -600,6 +605,12 @@ void *open_muxer( void *ptr )
         stream = &program.streams[i];
         output_stream = &mux_params->output_streams[i];
         input_stream = get_input_stream( h, output_stream->input_stream_id );
+        if( !input_stream )
+        {
+            syslog( LOG_ERR, "Unable to find input stream %d for output stream %d\n",
+                    output_stream->input_stream_id, output_stream->output_stream_id );
+            goto end;
+        }
 
         if( output_stream->stream_action == STREAM_ENCODE )
             stream_format = output_stream->stream_format;

@@ -41,6 +41,10 @@
 
 	NSError *error = nil;
 	videoDeviceInput = [AVCaptureDeviceInput deviceInputWithDevice:videoDevice error:&error];
+	if (!videoDeviceInput) {
+		NSLog(@"Unable to create video device input: %@\n", error);
+		return NULL;
+	}
 
 	[session beginConfiguration];
 	[session setSessionPreset:AVCaptureSessionPresetHigh];
