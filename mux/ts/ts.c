@@ -727,8 +727,12 @@ void *open_muxer( void *ptr )
             x264_param_t *p_param = encoder->encoder_params;
             int j = 0;
 //p_param->i_profile = 100;
+#if __APPLE__
+            p_param->i_level_idc = 32;
+#else
             while( avc_profiles[j][0] && p_param->i_profile != avc_profiles[j][0] )
                 j++;
+#endif
 //p_param->i_level_idc = 32;
 //printf("p_param->i_level_idc = %d\n", p_param->i_level_idc);
 
