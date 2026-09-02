@@ -1172,9 +1172,8 @@ HRESULT DeckLinkCaptureDelegate::noVideoInputFrameArrived(IDeckLinkVideoInputFra
 
 HRESULT DeckLinkCaptureDelegate::processSMPTE2064(IDeckLinkVideoInputFrame *videoframe, IDeckLinkAudioInputPacket *audioframe)
 {
-    decklink_ctx_t *decklink_ctx = &decklink_opts_->decklink_ctx;
-
 #if HAVE_LIBKLSMPTE2064_KLSMPTE2064_H
+    decklink_ctx_t *decklink_ctx = &decklink_opts_->decklink_ctx;
     if (videoframe) {
         if (decklink_ctx->smpte2064_hdl == NULL) {
 
