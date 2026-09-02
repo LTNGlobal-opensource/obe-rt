@@ -586,8 +586,7 @@ obe_t *obe_setup(const char *syslogSuffix)
 
 int obe_set_config( obe_t *h, int system_type )
 {
-    if( system_type < OBE_SYSTEM_TYPE_GENERIC && system_type > OBE_SYSTEM_TYPE_LOW_LATENCY )
-    {
+    if (system_type < OBE_SYSTEM_TYPE_GENERIC || system_type > OBE_SYSTEM_TYPE_LOW_LATENCY) {
         fprintf( stderr, "Invalid OBE system type\n" );
         return -1;
     }
