@@ -1870,8 +1870,10 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
         }
 
         if (g_decklink_udp_vanc_receiver_port && vr->active) {
-            /* Receive any pending message */
-            ssize_t len = recv(vr->skt, vr->buf, vr->bufmaxlen, 0);
+            /* Receive any pending message. Reserve 8 bytes of headroom in the
+             * buffer for the padding written below, so a full-size datagram
+             * can never cause the pad loop to write past the end of vr->buf. */
+            ssize_t len = recv(vr->skt, vr->buf, vr->bufmaxlen - 8, 0);
             if (len > 0) {
                 /* Padd the end of the message  */
                 for (int i = len; i < len + 8; i+= 2) {
