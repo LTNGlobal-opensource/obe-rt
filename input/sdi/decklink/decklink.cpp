@@ -2684,7 +2684,7 @@ static int cb_SDP(void *callback_context, struct klvanc_context_s *ctx, struct k
             if (pkt->descriptors[j].line == 0)
                 continue;
 
-		N_units++;
+            N_units++;
 	}
 
 	/* We could be here with N=0 and we'll need to stuff all data_units */
