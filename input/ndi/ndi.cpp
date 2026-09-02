@@ -768,12 +768,12 @@ static int open_device(ndi_opts_t *opts)
 	 * a single discovery server.
 	 */
 	char cfgdir[256];
-	sprintf(cfgdir, "%s/.%s", cwd, extraIPS);
+	snprintf(cfgdir, sizeof(cfgdir), "%s/.%s", cwd, extraIPS);
 	printf(MODULE_PREFIX "Using NDI discovery configuration directory '%s'\n", cfgdir);
 
 	/* Check if the ndi file exists, if not throw an informational warning */
 	char cfgname[256];
-	sprintf(cfgname, "%s/ndi-config.v1.json", cfgdir);
+	snprintf(cfgname, sizeof(cfgname), "%s/ndi-config.v1.json", cfgdir);
 	printf(MODULE_PREFIX "Using NDI discovery configuration absolute filename '%s'\n", cfgname);
 	FILE *fh = fopen(cfgname, "rb");
 	if (fh) {

@@ -337,7 +337,7 @@ void klsyslog_and_stdout(int level, const char *format, ...)
 
     va_list vl;
     va_start(vl,format);
-    vsprintf(&buf[strlen(buf)], format, vl);
+    vsnprintf(&buf[strlen(buf)], sizeof(buf) - strlen(buf), format, vl);
     va_end(vl);
 
     syslog(level, "%s", buf);
@@ -351,11 +351,11 @@ void kllog(const char *category, const char *format, ...)
     gettimeofday(&tv, 0);
 
     //sprintf(buf, "%08d.%03d : OBE : ", (unsigned int)tv.tv_sec, (unsigned int)tv.tv_usec / 1000);
-    sprintf(buf, "OBE-%s : ", category);
+    snprintf(buf, sizeof(buf), "OBE-%s : ", category);
 
     va_list vl;
     va_start(vl,format);
-    vsprintf(&buf[strlen(buf)], format, vl);
+    vsnprintf(&buf[strlen(buf)], sizeof(buf) - strlen(buf), format, vl);
     va_end(vl);
 
     syslog(LOG_INFO | LOG_LOCAL4, "%s", buf);
@@ -636,7 +636,7 @@ public:
                 return S_OK;
             }
             printf("%s() %x [ %s ]\n", __func__, mode_id, fmt->ascii_name);
-            sprintf(g_signal_format_detected, fmt->ascii_name);
+            snprintf(g_signal_format_detected, sizeof(g_signal_format_detected), "%s", fmt->ascii_name);
             clock_gettime(CLOCK_REALTIME, &g_signal_detected_ts);
             clock_gettime(CLOCK_REALTIME, &g_signal_los_ts);
 
@@ -856,7 +856,7 @@ static int processAudio(decklink_ctx_t *decklink_ctx, decklink_opts_t *decklink_
                         uint32_t b = prbs15_generate(&decklink_ctx->prbs);
                         if (a != b) {
                             char t[160];
-                            sprintf(t, "%s", ctime(&now));
+                            snprintf(t, sizeof(t), "%s", ctime(&now));
                             t[strlen(t) - 1] = 0;
                             fprintf(stderr, "%s: KL PRSB15 Audio frame discontinuity, expected %08" PRIx32 " got %08" PRIx32 "\n", t, b, a);
                             prbs_inited = 0;
@@ -1121,7 +1121,7 @@ HRESULT DeckLinkCaptureDelegate::noVideoInputFrameArrived(IDeckLinkVideoInputFra
 	g_decklink_injected_frame_count++;
 	if (g_decklink_injected_frame_count > g_decklink_injected_frame_count_max) {
             char msg[128];
-            sprintf(msg, "Decklink card index %i: More than %d frames were injected, aborting.\n",
+            snprintf(msg, sizeof(msg), "Decklink card index %i: More than %d frames were injected, aborting.\n",
                 decklink_opts_->card_idx,
                 g_decklink_injected_frame_count_max);
             syslog(LOG_ERR, "%s", msg);
@@ -1457,9 +1457,9 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             char fn[256];
             int len = sfc * decklink_opts_->num_channels * (32 / 8);
 #if AUDIO_DEBUG_ENABLE
-            sprintf(fn, "/storage/ltn/stoth/cardindex%d-audio%03d-srf%d.raw", decklink_opts_->card_idx, aidx++, sfc);
+            snprintf(fn, sizeof(fn), "/storage/ltn/stoth/cardindex%d-audio%03d-srf%d.raw", decklink_opts_->card_idx, aidx++, sfc);
 #else
-            sprintf(fn, "/tmp/cardindex%d-audio%03d-srf%d.raw", decklink_opts_->card_idx, aidx++, sfc);
+            snprintf(fn, sizeof(fn), "/tmp/cardindex%d-audio%03d-srf%d.raw", decklink_opts_->card_idx, aidx++, sfc);
 #endif
             FILE *fh = fopen(fn, "wb");
             if (fh) {
@@ -1583,14 +1583,14 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             double diff = abs(g_decklink_fake_every_other_frame_lose_audio_count - g_decklink_fake_every_other_frame_lose_video_count);
 
             char t[160];
-            sprintf(t, "%s", ctime(&now));
+            snprintf(t, sizeof(t), "%s", ctime(&now));
             t[strlen(t) - 1] = 0;
             //printf("%s -- decklink a/v ratio loss is %f\n", t, diff);
             /* If loss of a/v frames vs full frames (with a+v) falls below 75%, exit. */
             /* Based on observed condition, the loss quickly reaches 50%, hence 75% is very safe. */
             if (diff > 0 && g_decklink_fake_every_other_frame_lose_audio_count / g_decklink_fake_every_other_frame_lose_video_count < 0.75) {
                 char msg[128];
-                sprintf(msg, "Decklink card index %i: video (%f) to audio (%f) frames ratio too low, aborting.\n",
+                snprintf(msg, sizeof(msg), "Decklink card index %i: video (%f) to audio (%f) frames ratio too low, aborting.\n",
                     decklink_opts_->card_idx,
                     g_decklink_fake_every_other_frame_lose_video_count,
                     g_decklink_fake_every_other_frame_lose_audio_count);
@@ -1618,7 +1618,7 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             g_decklink_fake_lost_payload_state = 0; /* Don't drop audio in next frame, resume. */
 
             char t[160];
-            sprintf(t, "%s", ctime(&now));
+            snprintf(t, sizeof(t), "%s", ctime(&now));
             t[strlen(t) - 1] = 0;
             printf("%s -- Simulating video loss\n", t);
             if (g_decklink_inject_frame_enable)
@@ -1630,7 +1630,7 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             audioframe = NULL;
             g_decklink_fake_lost_payload_state = 0; /* No loss occurs */
             char t[160];
-            sprintf(t, "%s", ctime(&now));
+            snprintf(t, sizeof(t), "%s", ctime(&now));
             t[strlen(t) - 1] = 0;
             printf("%s -- Simulating audio loss\n", t);
         }
@@ -1670,7 +1670,7 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
         V210_painter_reset(&painter, (unsigned char *)frame_bytes, width, height, stride, 0);
 
         char tc[64];
-        sprintf(tc, "sdi timecode: %02d:%02d:%02d.%02d",
+        snprintf(tc, sizeof(tc), "sdi timecode: %02d:%02d:%02d.%02d",
             decklink_ctx->timecode.hours,
             decklink_ctx->timecode.minutes,
             decklink_ctx->timecode.seconds,
@@ -1684,7 +1684,7 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
 	gettimeofday(&tv, 0);
 
 	char lbl[64];
-	sprintf(lbl, "%d.%06d: %" PRIu64 "", (int)tv.tv_sec, (int)tv.tv_usec, frameCount);
+	snprintf(lbl, sizeof(lbl), "%d.%06d: %" PRIu64 "", (int)tv.tv_sec, (int)tv.tv_usec, frameCount);
 
         videoframe->GetBytes(&frame_bytes);
         struct V210_painter_s painter;
@@ -1751,12 +1751,12 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
                 int noFrameMS = (cur_frame_time - decklink_ctx->last_frame_time) / 1000;
 
                 char msg[128];
-                sprintf(msg, "Decklink card index %i: No frame received for %d ms", decklink_opts_->card_idx, noFrameMS);
+                snprintf(msg, sizeof(msg), "Decklink card index %i: No frame received for %d ms", decklink_opts_->card_idx, noFrameMS);
                 syslog(LOG_WARNING, "%s", msg);
                 printf("%s\n", msg);
 
                 if (OPTION_ENABLED_(los_exit_ms) && noFrameMS >= OPTION_ENABLED_(los_exit_ms)) {
-                    sprintf(msg, "Terminating encoder as enable_los_exit_ms is active.");
+                    snprintf(msg, sizeof(msg), "Terminating encoder as enable_los_exit_ms is active.");
                     syslog(LOG_WARNING, "%s", msg);
                     printf("%s\n", msg);
                     exit(0);
@@ -1787,7 +1787,7 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
 		uint32_t val = V210_read_32bit_value(frame_bytes, stride, 210);
 		if (xxx + 1 != val) {
                         char t[160];
-                        sprintf(t, "%s", ctime(&now));
+                        snprintf(t, sizeof(t), "%s", ctime(&now));
                         t[strlen(t) - 1] = 0;
                         fprintf(stderr, "%s: KL OSD counter discontinuity, expected %08" PRIx32 " got %08" PRIx32 "\n", t, xxx + 1, val);
 		}
@@ -2568,7 +2568,7 @@ static int cb_SCTE_104(void *callback_context, struct klvanc_context_s *ctx, str
 			lastErrTime = now;
 
 			char t[64];
-			sprintf(t, "%s", ctime(&now));
+			snprintf(t, sizeof(t), "%s", ctime(&now));
 			t[ strlen(t) - 1] = 0;
 			syslog(LOG_INFO, "[decklink] SCTE104 frames present on SDI");
 			fprintf(stdout, "[decklink] SCTE104 frames present on SDI  @ %s", t);
@@ -2626,7 +2626,7 @@ static int cb_VANC_TYPE_KL_UINT64_COUNTER(void *callback_context, struct klvanc_
         if (lastGoodKLFrameCounter && lastGoodKLFrameCounter + 1 != pkt->counter) {
                 char t[160];
                 time_t now = time(0);
-                sprintf(t, "%s", ctime(&now));
+                snprintf(t, sizeof(t), "%s", ctime(&now));
                 t[strlen(t) - 1] = 0;
 
                 fprintf(stderr, "%s: KL VANC frame counter discontinuity was %" PRIu64 " now %" PRIu64 "\n",

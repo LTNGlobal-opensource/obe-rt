@@ -267,7 +267,7 @@ static int open_device(v210_opts_t *opts)
 	v210_ctx_t *ctx = &opts->ctx;
 
 	char fn[64];
-	sprintf(fn, "../../raw-input%d.v210", opts->card_idx);
+	snprintf(fn, sizeof(fn), "../../raw-input%d.v210", opts->card_idx);
 	printf(MODULE_PREFIX "Searching for V210 filename '%s'\n", fn);
 
 	ctx->v210_fd = open(fn,
@@ -279,7 +279,7 @@ static int open_device(v210_opts_t *opts)
 		0600); //6 = read+write for me!
 	if (ctx->v210_fd < 0) {
 		fprintf(stderr, MODULE_PREFIX "No input filename '%s' detected.\n", fn);
-		sprintf(fn, "raw-input%d.v210", opts->card_idx);
+		snprintf(fn, sizeof(fn), "raw-input%d.v210", opts->card_idx);
 		printf(MODULE_PREFIX "Searching for V210 filename '%s'\n", fn);
 		ctx->v210_fd = open(fn,
 #if defined(__linux__)
