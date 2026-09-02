@@ -293,7 +293,7 @@ static int cb_SCTE_104(void *callback_context, struct klvanc_context_s *vanchdl,
 			lastErrTime = now;
 
 			char t[64];
-			sprintf(t, "%s", ctime(&now));
+			snprintf(t, sizeof(t), "%s", ctime(&now));
 			t[ strlen(t) - 1] = 0;
 			syslog(LOG_INFO, MODULE_PREFIX "SCTE104 frames present on SDI");
 			fprintf(stdout, MODULE_PREFIX "SCTE104 frames present on SDI  @ %s", t);

@@ -2648,25 +2648,25 @@ static void *avc_vaapi_start_encoder( void *ptr )
 	ctx->hevc_params->internalCsp = X265_CSP_I420;
 	x265_param_parse(ctx->hevc_params, "repeat-headers", "1");
 
-	sprintf(&val[0], "%.3f", (float)ctx->enc_params->avc_param.i_fps_num / (float)ctx->enc_params->avc_param.i_fps_den); 
+	snprintf(&val[0], sizeof(val), "%.3f", (float)ctx->enc_params->avc_param.i_fps_num / (float)ctx->enc_params->avc_param.i_fps_den);
 	x265_param_parse(ctx->hevc_params, "fps", val);
 
-	sprintf(&val[0], "%d",ctx->enc_params->avc_param.i_keyint_max);
+	snprintf(&val[0], sizeof(val), "%d",ctx->enc_params->avc_param.i_keyint_max);
 	x265_param_parse(ctx->hevc_params, "keyint", val);
 
-	sprintf(&val[0], "%d", ctx->enc_params->avc_param.rc.i_vbv_buffer_size);
+	snprintf(&val[0], sizeof(val), "%d", ctx->enc_params->avc_param.rc.i_vbv_buffer_size);
 	x265_param_parse(ctx->hevc_params, "vbv-bufsize", val);
 
-	sprintf(&val[0], "%d", ctx->enc_params->avc_param.rc.i_vbv_max_bitrate);
+	snprintf(&val[0], sizeof(val), "%d", ctx->enc_params->avc_param.rc.i_vbv_max_bitrate);
 	x265_param_parse(ctx->hevc_params, "vbv-maxrate", val);
 
 	/* 0 Is preferred, which is 'autodetect' */
-	sprintf(&val[0], "%d", ctx->enc_params->avc_param.i_threads);
+	snprintf(&val[0], sizeof(val), "%d", ctx->enc_params->avc_param.i_threads);
 	x265_param_parse(ctx->hevc_params, "frame-threads", val);
 
 //	x265_param_parse(ctx->hevc_params, "rc-lookahead", "4");
 //	x265_param_parse(ctx->hevc_params, "vbv-minrate", "6000");
-	sprintf(&val[0], "%d", ctx->enc_params->avc_param.rc.i_bitrate);
+	snprintf(&val[0], sizeof(val), "%d", ctx->enc_params->avc_param.rc.i_bitrate);
 	x265_param_parse(ctx->hevc_params, "bitrate", val);
 
 	ctx->hevc_picture_in = x265_picture_alloc();

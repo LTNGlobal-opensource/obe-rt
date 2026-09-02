@@ -441,7 +441,7 @@ static int open_device(v4l2_opts_t *v4l2_opts)
     unsigned int video_input_nr = 0;
 
     char devfn[16];
-    sprintf(devfn, "/dev/video%d", v4l2_opts->card_idx);
+    snprintf(devfn, sizeof(devfn), "/dev/video%d", v4l2_opts->card_idx);
     v4l2_ctx->fd = open(devfn, O_RDWR);
     if (v4l2_ctx->fd < 0) {
         fprintf( stderr, "[v4l2] Could not open %s\n", devfn);

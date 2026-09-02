@@ -454,7 +454,7 @@ int vega_has_source_signal_changed(API_VEGA3311_CAPTURE_FORMAT_T *src, API_VEGA3
         return 0; /* False */
 }
 
-void vega_pts_to_ascii(char *buf, int64_t pts)
+void vega_pts_to_ascii(char *buf, size_t bufsize, int64_t pts)
 {
         /* Normalize to seconds */
         int64_t t = pts / 90000;
@@ -465,7 +465,7 @@ void vega_pts_to_ascii(char *buf, int64_t pts)
         int hrs  = (t / 3600) % 24;
         int days = t / 86400;
 
-        sprintf(buf, "%d.%02d:%02d:%02d.%03d",
+        snprintf(buf, bufsize, "%d.%02d:%02d:%02d.%03d",
                         days, hrs, mins, secs, ms);
 }
 

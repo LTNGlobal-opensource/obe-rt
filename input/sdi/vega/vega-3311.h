@@ -67,7 +67,7 @@ const char *lookupVegaEncodingImageFormatName(int v);
 const char *lookupVegaCapState(API_VEGA3311_CAP_STATE_E s);
 const char *lookupVegaBQBState(API_VEGA_BQB_STATUS_E s);
 int vega_has_source_signal_changed(API_VEGA3311_CAPTURE_FORMAT_T *src, API_VEGA3311_CAPTURE_FORMAT_T *dst);
-void vega_pts_to_ascii(char *buf, int64_t pts);
+void vega_pts_to_ascii(char *buf, size_t bufsize, int64_t pts);
 
 const struct obe_to_vega_video *lookupVegaCaptureResolution(int std, int framerate, int interlaced);
 

@@ -87,7 +87,7 @@ static void processCodecOutput(struct context_s *ctx, AVPacket *pkt, AVFifoBuffe
 
     if (av_fifo_realloc2(fifo, av_fifo_size(fifo) + pkt->size) < 0) {
         char msg[128];
-        sprintf(msg, MODULE "malloc av_fifo_realloc2(?, %d + %d)\n", av_fifo_size(fifo), pkt->size);
+        snprintf(msg, sizeof(msg), MODULE "malloc av_fifo_realloc2(?, %d + %d)\n", av_fifo_size(fifo), pkt->size);
         fprintf(stderr, "%s\n", msg);
         syslog(LOG_ERR, "%s", msg);
         return;
@@ -190,7 +190,7 @@ static void processCodecOutput(struct context_s *ctx, AVPacket *pkt, AVFifoBuffe
         /* write post-resamples payload to disk for debug */
         if (g_audio_cf_debug & 0x80) {
             char fn[128];
-            sprintf(fn, "/storage/ltn/stoth/audio-debug-cf---%02x-strm-%d-framenr-%012" PRIu64 ".raw",
+            snprintf(fn, sizeof(fn), "/storage/ltn/stoth/audio-debug-cf---%02x-strm-%d-framenr-%012" PRIu64 ".raw",
                 g_audio_cf_debug,
                 ctx->encoder->output_stream_id,
                 ctx->cfQD);
@@ -203,7 +203,7 @@ static void processCodecOutput(struct context_s *ctx, AVPacket *pkt, AVFifoBuffe
         }
         if (g_audio_cf_debug & 0x80) {
             char fn[128];
-            sprintf(fn, "/storage/ltn/stoth/audio-debug-comp-%02x-strm-%d-framenr-%012" PRIu64 ".raw",
+            snprintf(fn, sizeof(fn), "/storage/ltn/stoth/audio-debug-comp-%02x-strm-%d-framenr-%012" PRIu64 ".raw",
                 g_audio_cf_debug,
                 ctx->encoder->output_stream_id,
                 ctx->cfQD);
@@ -516,7 +516,7 @@ static void *aac_start_encoder(void *ptr)
         /* write pre-resample payload to disk for debug */
         if (g_audio_cf_debug & 0x80) {
             char fn[128];
-            sprintf(fn, "/storage/ltn/stoth/audio-debug-pre--%02x-strm-%d-framenr-%012" PRIu64 "-ch%d-samples%d.raw",
+            snprintf(fn, sizeof(fn), "/storage/ltn/stoth/audio-debug-pre--%02x-strm-%d-framenr-%012" PRIu64 "-ch%d-samples%d.raw",
                 g_audio_cf_debug,
                 ctx->encoder->output_stream_id,
                 audioFramesDQ,
@@ -551,7 +551,7 @@ static void *aac_start_encoder(void *ptr)
         /* write post-resamples payload to disk for debug */
         if (g_audio_cf_debug & 0x80) {
             char fn[128];
-            sprintf(fn, "/storage/ltn/stoth/audio-debug-post-%02x-strm-%d-framenr-%012" PRIu64 "-ch%d-samples%d.raw",
+            snprintf(fn, sizeof(fn), "/storage/ltn/stoth/audio-debug-post-%02x-strm-%d-framenr-%012" PRIu64 "-ch%d-samples%d.raw",
                 g_audio_cf_debug,
                 ctx->encoder->output_stream_id,
                 audioFramesDQ,

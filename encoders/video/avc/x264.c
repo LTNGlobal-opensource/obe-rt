@@ -273,7 +273,7 @@ static void x264_logger( void *p_unused, int i_level, const char *psz_fmt, va_li
 #if DO_X264_VERBOSE_LOGGING
     time_t now = time(NULL);
     char ts[128];
-    sprintf(ts, "%s", ctime(&now));
+    snprintf(ts, sizeof(ts), "%s", ctime(&now));
     ts[strlen(ts) - 1] = 0; /* Trim trailing CR */
 
 printf("%s : ", ts);
@@ -1056,25 +1056,25 @@ printf("param.rc.i_vbv_buffer_size = %d\n", param.rc.i_vbv_buffer_size);
 
         char line[80];
         int linepos = 0;
-        sprintf(line, "bitrate: %d", enc_params->avc_param.rc.i_bitrate);
+        snprintf(line, sizeof(line), "bitrate: %d", enc_params->avc_param.rc.i_bitrate);
         vc8x0_display_render_string(&osdctx, line, strlen(line), 0, linepos++);
 
-        sprintf(line, "vbv_max_bitrate: %d", enc_params->avc_param.rc.i_vbv_max_bitrate);
+        snprintf(line, sizeof(line), "vbv_max_bitrate: %d", enc_params->avc_param.rc.i_vbv_max_bitrate);
         vc8x0_display_render_string(&osdctx, line, strlen(line), 0, linepos++);
 
-        sprintf(line, "vbv_buf_size: %d", enc_params->avc_param.rc.i_vbv_buffer_size);
+        snprintf(line, sizeof(line), "vbv_buf_size: %d", enc_params->avc_param.rc.i_vbv_buffer_size);
         vc8x0_display_render_string(&osdctx, line, strlen(line), 0, linepos++);
 
-        sprintf(line, "keyint_min: %d", enc_params->avc_param.i_keyint_min);
+        snprintf(line, sizeof(line), "keyint_min: %d", enc_params->avc_param.i_keyint_min);
         vc8x0_display_render_string(&osdctx, line, strlen(line), 0, linepos++);
 
-        sprintf(line, "keyint_max: %d", enc_params->avc_param.i_keyint_max);
+        snprintf(line, sizeof(line), "keyint_max: %d", enc_params->avc_param.i_keyint_max);
         vc8x0_display_render_string(&osdctx, line, strlen(line), 0, linepos++);
 
-        sprintf(line, "lookahead: %d", enc_params->avc_param.rc.i_lookahead);
+        snprintf(line, sizeof(line), "lookahead: %d", enc_params->avc_param.rc.i_lookahead);
         vc8x0_display_render_string(&osdctx, line, strlen(line), 0, linepos++);
 
-        sprintf(line, "alterate encoding: %d", g_x264_encode_alternate);
+        snprintf(line, sizeof(line), "alterate encoding: %d", g_x264_encode_alternate);
         vc8x0_display_render_string(&osdctx, line, strlen(line), 0, linepos++);
 
 #endif

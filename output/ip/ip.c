@@ -206,7 +206,7 @@ static int _srt_open(hnd_t *p_handle, obe_udp_opts_t *udp_opts)
 
     char t[64];
     time_t now = time(NULL);
-    sprintf(t, "%s", ctime(&now));
+    snprintf(t, sizeof(t), "%s", ctime(&now));
     t[ strlen(t) - 1] = 0;
     klsyslog_and_stdout(LOG_ERR, "[srt] SRT connection opened to %s:%d @ %s\n",
         udp_opts->hostname, udp_opts->port, t);
@@ -414,7 +414,7 @@ static void _srt_stats(hnd_t handle)
 
     char t[64];
     time_t now = time(NULL);
-    sprintf(t, "%s", ctime(&now));
+    snprintf(t, sizeof(t), "%s", ctime(&now));
     t[ strlen(t) - 1] = 0;
 
     if (flag_lost_packets) {
@@ -460,7 +460,7 @@ static int _srt_reopen(hnd_t handle, obe_udp_opts_t *udp_opts)
 
     char t[64];
     time_t now = time(NULL);
-    sprintf(t, "%s", ctime(&now));
+    snprintf(t, sizeof(t), "%s", ctime(&now));
     t[ strlen(t) - 1] = 0;
     klsyslog_and_stdout(LOG_ERR, "[srt] SRT connection lost @ %s\n", t);
 

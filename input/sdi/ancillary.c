@@ -327,7 +327,7 @@ static void save_vanc_line(uint16_t *line, int width, int line_number)
 	time(&now);
 
 	char fn[64];
-	sprintf(fn, "/tmp/%d-line%d-width%d.raw", (int)now, line_number, width);
+	snprintf(fn, sizeof(fn), "/tmp/%d-line%d-width%d.raw", (int)now, line_number, width);
 	
 	FILE *fh = fopen(fn, "wb");
 	if (fh) {

@@ -61,18 +61,31 @@ public:
     {
         int  Len = 0;
         char  Buffer[1024];
-        Len = sprintf(Buffer, "%s(%d): ", pFile, Line);
+        Len = snprintf(Buffer, sizeof(Buffer), "%s(%d): ", pFile, Line);
+        if (Len < 0)
+            Len = 0;
+        if (Len > (int)sizeof(Buffer) - 1)
+            Len = (int)sizeof(Buffer) - 1;
         if (Len >= 0)
         {
             // Add message and inserts to the debug string
             va_list  VaArgs;
             va_start(VaArgs, pMsg);
-            Len += vsprintf(&Buffer[Len], pMsg, VaArgs);
+            int MsgLen = vsnprintf(&Buffer[Len], sizeof(Buffer) - Len, pMsg, VaArgs);
             va_end(VaArgs);
+            if (MsgLen > 0)
+                Len += MsgLen;
+            if (Len > (int)sizeof(Buffer) - 1)
+                Len = (int)sizeof(Buffer) - 1;
         }
         // Append error code
-        if (ErrorCode != DTAPI_OK)
-            Len += sprintf(&Buffer[Len], " (ERROR=%s)", ::DtapiResult2Str(ErrorCode));
+        if (ErrorCode != DTAPI_OK) {
+            int ErrLen = snprintf(&Buffer[Len], sizeof(Buffer) - Len, " (ERROR=%s)", ::DtapiResult2Str(ErrorCode));
+            if (ErrLen > 0)
+                Len += ErrLen;
+            if (Len > (int)sizeof(Buffer) - 1)
+                Len = (int)sizeof(Buffer) - 1;
+        }
         Buffer[Len++] = '\0';
         m_ErrorString = Buffer;
         m_ErrorCode = ErrorCode;

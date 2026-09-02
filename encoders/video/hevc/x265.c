@@ -221,7 +221,7 @@ static void x265_picture_save(x265_picture *pic)
 	static int index = 0;
 
 	char fn[64];
-	sprintf(fn, "field%06d.yuv", index++);
+	snprintf(fn, sizeof(fn), "field%06d.yuv", index++);
 	FILE *fh = fopen(fn, "wb");
 
 	/* Copy all of the planes. */
@@ -751,7 +751,7 @@ static int rapid_reconfigure_encoder(struct context_s *ctx)
 	int ret;
 	char val[64];
 
-	sprintf(&val[0], "%d", ctx->enc_params->avc_param.rc.i_bitrate);
+	snprintf(&val[0], sizeof(val), "%d", ctx->enc_params->avc_param.rc.i_bitrate);
 	x265_param_parse(ctx->hevc_params, "bitrate", val);
 	printf(MESSAGE_PREFIX "%s() bitrate %s\n", __func__, val);
 
@@ -759,11 +759,11 @@ static int rapid_reconfigure_encoder(struct context_s *ctx)
 		/* Found that in lowest mode, obe doesn't accept the param, but the codec reports underruns. */
 		ctx->enc_params->avc_param.rc.i_vbv_buffer_size = ctx->enc_params->avc_param.rc.i_vbv_max_bitrate;
 	}
-	sprintf(&val[0], "%d", ctx->enc_params->avc_param.rc.i_vbv_buffer_size);
+	snprintf(&val[0], sizeof(val), "%d", ctx->enc_params->avc_param.rc.i_vbv_buffer_size);
 	x265_param_parse(ctx->hevc_params, "vbv-bufsize", val);
 	printf(MESSAGE_PREFIX "%s() vbv-bufsize = %s\n", __func__, val);
 
-	sprintf(&val[0], "%d", ctx->enc_params->avc_param.rc.i_vbv_max_bitrate);
+	snprintf(&val[0], sizeof(val), "%d", ctx->enc_params->avc_param.rc.i_vbv_max_bitrate);
 	x265_param_parse(ctx->hevc_params, "vbv-maxrate", val);
 	printf(MESSAGE_PREFIX "%s() vbv-maxrate = %d\n", __func__, ctx->enc_params->avc_param.rc.i_vbv_max_bitrate);
 
@@ -827,11 +827,11 @@ static int reconfigure_encoder(struct context_s *ctx)
 
 	char val[64];
 	if (ctx->enc_params->avc_param.b_interlaced) {
-		sprintf(val, "%dx%d",
+		snprintf(val, sizeof(val), "%dx%d",
 			ctx->enc_params->avc_param.i_width,
 			ctx->enc_params->avc_param.i_height / 2);
 	} else {
-		sprintf(val, "%dx%d", ctx->enc_params->avc_param.i_width, ctx->enc_params->avc_param.i_height);
+		snprintf(val, sizeof(val), "%dx%d", ctx->enc_params->avc_param.i_width, ctx->enc_params->avc_param.i_height);
 	}
 	x265_param_parse(ctx->hevc_params, "input-res", val);
 
@@ -859,14 +859,14 @@ static int reconfigure_encoder(struct context_s *ctx)
 
 	if (ctx->enc_params->avc_param.b_interlaced) {
 		/* X265 wants the rate in fields per second, instead of (progressive) frames per second. */
-		sprintf(&val[0], "%d/%d", ctx->enc_params->avc_param.i_fps_num * 2, ctx->enc_params->avc_param.i_fps_den);
+		snprintf(&val[0], sizeof(val), "%d/%d", ctx->enc_params->avc_param.i_fps_num * 2, ctx->enc_params->avc_param.i_fps_den);
 	} else {
-		sprintf(&val[0], "%d/%d", ctx->enc_params->avc_param.i_fps_num, ctx->enc_params->avc_param.i_fps_den);
+		snprintf(&val[0], sizeof(val), "%d/%d", ctx->enc_params->avc_param.i_fps_num, ctx->enc_params->avc_param.i_fps_den);
 	}
 	x265_param_parse(ctx->hevc_params, "fps", val);
 
 //ctx->enc_params->avc_param.i_keyint_max = 60;
-	sprintf(&val[0], "%d",ctx->enc_params->avc_param.i_keyint_max);
+	snprintf(&val[0], sizeof(val), "%d",ctx->enc_params->avc_param.i_keyint_max);
 	x265_param_parse(ctx->hevc_params, "keyint", val);
 	printf(MESSAGE_PREFIX "keyint = %s\n", val);
 
@@ -880,16 +880,16 @@ static int reconfigure_encoder(struct context_s *ctx)
 		ctx->enc_params->avc_param.rc.i_vbv_buffer_size = ctx->enc_params->avc_param.rc.i_vbv_max_bitrate;
 		printf(MESSAGE_PREFIX "vbv_bufsize = %d\n", ctx->enc_params->avc_param.rc.i_vbv_buffer_size);
 	}
-	sprintf(&val[0], "%d", ctx->enc_params->avc_param.rc.i_vbv_buffer_size);
+	snprintf(&val[0], sizeof(val), "%d", ctx->enc_params->avc_param.rc.i_vbv_buffer_size);
 	x265_param_parse(ctx->hevc_params, "vbv-bufsize", val);
 
-	sprintf(&val[0], "%d", ctx->enc_params->avc_param.rc.i_vbv_max_bitrate);
+	snprintf(&val[0], sizeof(val), "%d", ctx->enc_params->avc_param.rc.i_vbv_max_bitrate);
 	x265_param_parse(ctx->hevc_params, "vbv-maxrate", val);
 	printf(MESSAGE_PREFIX "vbv-maxrate = %d\n", ctx->enc_params->avc_param.rc.i_vbv_max_bitrate);
 	x265_param_parse(ctx->hevc_params, "vbv-init", "0.9");
 
 	if (ctx->enc_params->avc_param.rc.i_lookahead > 0) {
-		sprintf(&val[0], "%d", ctx->enc_params->avc_param.rc.i_lookahead);
+		snprintf(&val[0], sizeof(val), "%d", ctx->enc_params->avc_param.rc.i_lookahead);
 		printf(MESSAGE_PREFIX "lookahead = %s\n", val); 
 		x265_param_parse(ctx->hevc_params, "rc-lookahead", val);
 	}
@@ -908,27 +908,27 @@ static int reconfigure_encoder(struct context_s *ctx)
 		printf(MESSAGE_PREFIX "pushing min-qp to %d for 573 with interlaced\n", g_x265_min_qp); 
 	}
 
-	sprintf(&val[0], "%d", g_x265_min_qp);
+	snprintf(&val[0], sizeof(val), "%d", g_x265_min_qp);
 	printf(MESSAGE_PREFIX "Setting QPmin to %s\n", val);
 	x265_param_parse(ctx->hevc_params, "qpmin", val);
 
 	/* 0 Is preferred, which is 'autodetect' */
-	sprintf(&val[0], "%d", ctx->enc_params->avc_param.i_threads);
+	snprintf(&val[0], sizeof(val), "%d", ctx->enc_params->avc_param.i_threads);
 	x265_param_parse(ctx->hevc_params, "frame-threads", val);
 
-	sprintf(&val[0], "%d", ctx->enc_params->avc_param.rc.i_bitrate);
+	snprintf(&val[0], sizeof(val), "%d", ctx->enc_params->avc_param.rc.i_bitrate);
 	x265_param_parse(ctx->hevc_params, "bitrate", val);
 	printf(MESSAGE_PREFIX "bitrate %s\n", val);
 
-	sprintf(&val[0], "%d", ctx->enc_params->avc_param.i_nal_hrd == 3 ? 0 : 1);
+	snprintf(&val[0], sizeof(val), "%d", ctx->enc_params->avc_param.i_nal_hrd == 3 ? 0 : 1);
 	printf(MESSAGE_PREFIX "strict cbr is %s\n", val);
 	x265_param_parse(ctx->hevc_params, "strict-cbr", val);
 
 	if (obe_core_get_platform_model() == 573) {
 		if (ctx->enc_params->avc_param.b_interlaced)
-			sprintf(val, "16");
+			snprintf(val, sizeof(val), "16");
 		else
-			sprintf(val, "64");
+			snprintf(val, sizeof(val), "64");
 		printf(MESSAGE_PREFIX "ctu %s\n", val);
 		x265_param_parse(ctx->hevc_params, "ctu", val);
 
@@ -942,11 +942,11 @@ static int reconfigure_encoder(struct context_s *ctx)
 	}
 	x265_param_parse(ctx->hevc_params, "aud", "1");
 #if 0
-	sprintf(&val[0], "%d", 1);
+	snprintf(&val[0], sizeof(val), "%d", 1);
 	printf(MESSAGE_PREFIX "hrd is %s\n", val);
 	x265_param_parse(ctx->hevc_params, "hrd", val);
 
-	sprintf(&val[0], "%d", 1);
+	snprintf(&val[0], sizeof(val), "%d", 1);
 	printf(MESSAGE_PREFIX "frame duplication is %s\n", val);
 	x265_param_parse(ctx->hevc_params, "frame-dup", val);
 #endif

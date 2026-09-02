@@ -167,7 +167,7 @@ static void vega_ndi_processFrameAudio(vega_opts_t *opts, NDIlib_audio_frame_v2_
 
         if (g_decklink_monitor_hw_clocks) {
                 char ts[64];
-                vega_pts_to_ascii(&ts[0], pcr / 300);
+                vega_pts_to_ascii(&ts[0], sizeof(ts), pcr / 300);
                 printf(MODULE_PREFIX "A/PCR '%s' or %13" PRIi64 ", interval %13" PRIi64 ", frame->timecode %" PRIi64 ", channels %d, channelstride %d\n",
                         ts, pcr, pcr - ctx->ndiLastPCR,
                         frame->timecode,
@@ -335,7 +335,7 @@ static void vega_ndi_processFrameVideo(vega_opts_t *opts, NDIlib_video_frame_v2_
 
         if (g_decklink_monitor_hw_clocks) {
                 char ts[64];
-                vega_pts_to_ascii(&ts[0], pcr / 300);
+                vega_pts_to_ascii(&ts[0], sizeof(ts), pcr / 300);
                 printf(MODULE_PREFIX "V/PCR '%s' or %13" PRIi64 ", interval %13" PRIi64 ", FourCC 0x%x, frame->timecode %" PRIi64 ", linestride %d\n",
                         ts, pcr, pcr - ctx->ndiLastPCR,
                         frame->FourCC,
@@ -513,12 +513,12 @@ int vega_ndi_start(vega_opts_t *opts)
 	 * a single discovery server.
 	 */
 	char cfgdir[256];
-	sprintf(cfgdir, "%s/.%s", cwd, extraIPS);
+	snprintf(cfgdir, sizeof(cfgdir), "%s/.%s", cwd, extraIPS);
 	printf(MODULE_PREFIX "Using NDI discovery configuration directory '%s'\n", cfgdir);
 
 	/* Check if the ndi file exists, if not throw an informational warning */
 	char cfgname[256];
-	sprintf(cfgname, "%s/ndi-config.v1.json", cfgdir);
+	snprintf(cfgname, sizeof(cfgname), "%s/ndi-config.v1.json", cfgdir);
 	printf(MODULE_PREFIX "Using NDI discovery configuration absolute filename '%s'\n", cfgname);
 	FILE *fh = fopen(cfgname, "rb");
 	if (fh) {

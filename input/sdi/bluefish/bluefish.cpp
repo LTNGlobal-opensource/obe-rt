@@ -359,7 +359,7 @@ static void *bluefish_videoThreadFunc(void *p)
 
 #if 0
 			char fn[64];
-			sprintf(fn, "vbi%06d.raw", ctx->v_counter);
+			snprintf(fn, sizeof(fn), "vbi%06d.raw", ctx->v_counter);
 			FILE *fh = fopen(fn, "wb");
 			if (fh) {
 				fwrite(pVancBuffer, 1, ctx->frameSizeBytesVanc, fh);

@@ -223,9 +223,9 @@ void vega3311_audio_callback(uint32_t u32DevId,
             int channels = MAX_VEGA_AUDIO_CHANNELS;
             int samplesPerChannel = st_frame_info->u32BufSize / channels / sizeof(uint16_t);
 #if AUDIO_DEBUG_ENABLE
-            sprintf(fn, "/storage/ltn/stoth/cardindex%d-audio%03d-srf%d.raw", opts->card_idx, aidx++, samplesPerChannel);
+            snprintf(fn, sizeof(fn), "/storage/ltn/stoth/cardindex%d-audio%03d-srf%d.raw", opts->card_idx, aidx++, samplesPerChannel);
 #else
-            sprintf(fn, "/tmp/cardindex%d-audio%03d-srf%d.raw", opts->card_idx, aidx++, samplesPerChannel);
+            snprintf(fn, sizeof(fn), "/tmp/cardindex%d-audio%03d-srf%d.raw", opts->card_idx, aidx++, samplesPerChannel);
 #endif
             FILE *fh = fopen(fn, "wb");
             if (fh) {
