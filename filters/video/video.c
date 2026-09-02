@@ -965,6 +965,9 @@ end:
         if( vfilt->sws_ctx )
             sws_freeContext( vfilt->sws_ctx );
 
+        if (vfilt->fc_ctx)
+            filter_compress_free(vfilt->fc_ctx);
+
         free( vfilt );
     }
 
@@ -977,10 +980,6 @@ end:
 #endif
 #endif
     free( filter_params );
-
-    if (vfilt->fc_ctx) {
-        filter_compress_free(vfilt->fc_ctx);
-    }
 
 #if DO_CRYSTAL_FP
     filter_analyze_fp_free(fp_ctx);
