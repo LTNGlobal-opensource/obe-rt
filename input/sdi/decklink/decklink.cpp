@@ -214,6 +214,14 @@ typedef struct
     /* VBI */
     int has_setup_vbi;
 
+    /* Scratch buffers for VANC/VBI processing in timedVideoInputFrameArrived(),
+     * reused across callbacks instead of malloc/free per frame. Grown (never
+     * shrunk) on demand; freed once in close_card(). */
+    uint16_t *anc_scratch_buf;
+    int       anc_scratch_buf_size; /* bytes currently allocated */
+    uint8_t  *vbi_scratch_buf;
+    int       vbi_scratch_buf_size; /* bytes currently allocated */
+
     /* Ancillary */
     void (*unpack_line) ( uint32_t *src, uint16_t *dst, int width );
     void (*downscale_line) ( uint16_t *src, uint8_t *dst, int lines );
@@ -291,8 +299,12 @@ typedef struct
     int video_format;
     int num_channels;
     int probe;
-#define OPTION_ENABLED(opt) (decklink_opts->enable_##opt)
-#define OPTION_ENABLED_(opt) (decklink_opts_->enable_##opt)
+/* Free functions use a local/param named decklink_opts; DeckLinkCaptureDelegate
+ * methods use decklink_opts_ instead. Both macros below share one definition
+ * so the duplication is only in the trailing underscore, not the logic. */
+#define OPTION_ENABLED_ON(ptr, opt) ((ptr)->enable_##opt)
+#define OPTION_ENABLED(opt) OPTION_ENABLED_ON(decklink_opts, opt)
+#define OPTION_ENABLED_(opt) OPTION_ENABLED_ON(decklink_opts_, opt)
     int enable_smpte2038;
     int enable_smpte2031;
     int enable_vanc_cache;
@@ -371,7 +383,7 @@ static void endian_flip_array(uint8_t *buf, int bufSize)
         }
 }
 
-static int _vancparse(struct klvanc_context_s *ctx, uint8_t *sec, int byteCount, int lineNr)
+static int _vancparse(struct klvanc_context_s *ctx, const uint8_t *sec, int byteCount, int lineNr)
 {
     if (byteCount < 0 || (byteCount / 2) > LIBKLVANC_PACKET_MAX_PAYLOAD) {
         fprintf(stderr, "%s() byteCount %d exceeds max payload, rejecting\n", __func__, byteCount);
@@ -405,7 +417,7 @@ static void calculate_audio_sfc_window(decklink_opts_t *opts)
     //printf("%s() audio_sfc_min/max = %d/%d\n", __func__, opts->audio_sfc_min, opts->audio_sfc_max);
 }
 
-static int transmit_pes_to_muxer(decklink_ctx_t *decklink_ctx, uint8_t *buf, uint32_t byteCount, stream_formats_e stream_format);
+static int transmit_pes_to_muxer(decklink_ctx_t *decklink_ctx, const uint8_t *buf, uint32_t byteCount, stream_formats_e stream_format);
 
 /* Take one line of V210 from VANC, colorspace convert and feed it to the
  * VANC parser. We'll expect our VANC message callbacks to happen on this
@@ -864,6 +876,7 @@ static int processAudio(decklink_ctx_t *decklink_ctx, decklink_opts_t *decklink_
                         uint32_t b = prbs15_generate(&decklink_ctx->prbs);
                         if (a != b) {
                             char t[160];
+                            time_t now = time(0);
                             snprintf(t, sizeof(t), "%s", ctime(&now));
                             t[strlen(t) - 1] = 0;
                             fprintf(stderr, "%s: KL PRSB15 Audio frame discontinuity, expected %08" PRIx32 " got %08" PRIx32 "\n", t, b, a);
@@ -1858,8 +1871,19 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
         anc_line_stride = FFALIGN( (width * 2 * sizeof(uint16_t)), 16 );
 
         /* Overallocate slightly for VANC buffer
-         * Some VBI services stray into the active picture so allocate some extra space */
-        anc_buf = anc_buf_pos = (uint16_t*)av_malloc( DECKLINK_VANC_LINES * anc_line_stride );
+         * Some VBI services stray into the active picture so allocate some extra space.
+         * Reused across callbacks (grown on demand) instead of malloc/free per frame;
+         * freed once in close_card(). */
+        {
+            int anc_buf_needed = DECKLINK_VANC_LINES * anc_line_stride;
+            if( !decklink_ctx->anc_scratch_buf || decklink_ctx->anc_scratch_buf_size < anc_buf_needed )
+            {
+                av_free( decklink_ctx->anc_scratch_buf );
+                decklink_ctx->anc_scratch_buf = (uint16_t*)av_malloc( anc_buf_needed );
+                decklink_ctx->anc_scratch_buf_size = decklink_ctx->anc_scratch_buf ? anc_buf_needed : 0;
+            }
+            anc_buf = anc_buf_pos = decklink_ctx->anc_scratch_buf;
+        }
         if( !anc_buf )
         {
             syslog( LOG_ERR, "Malloc failed\n" );
@@ -2150,7 +2174,18 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             }
             num_anc_lines += num_vbi_lines;
 
-            vbi_buf = (uint8_t*)av_malloc( width * 2 * num_anc_lines );
+            /* Reused across callbacks (grown on demand) instead of malloc/free
+             * per frame; freed once in close_card(). */
+            {
+                int vbi_buf_needed = width * 2 * num_anc_lines;
+                if( !decklink_ctx->vbi_scratch_buf || decklink_ctx->vbi_scratch_buf_size < vbi_buf_needed )
+                {
+                    av_free( decklink_ctx->vbi_scratch_buf );
+                    decklink_ctx->vbi_scratch_buf = (uint8_t*)av_malloc( vbi_buf_needed );
+                    decklink_ctx->vbi_scratch_buf_size = decklink_ctx->vbi_scratch_buf ? vbi_buf_needed : 0;
+                }
+                vbi_buf = decklink_ctx->vbi_scratch_buf;
+            }
             if( !vbi_buf )
             {
                 syslog( LOG_ERR, "Malloc failed\n" );
@@ -2195,11 +2230,13 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
 
             clock_gettime(CLOCK_REALTIME, &g_cea708_detected_ts);
 
-            av_free( vbi_buf );
+            /* vbi_buf/anc_buf alias decklink_ctx's reused scratch buffers now,
+             * not a per-frame allocation - clear the local aliases, but the
+             * underlying memory is owned by decklink_ctx and freed in
+             * close_card(), not here. */
             vbi_buf = NULL;
         }
 
-        av_free( anc_buf );
         anc_buf = NULL;
 
         if( !decklink_opts_->probe )
@@ -2375,13 +2412,9 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
 
 end:
     /* Reached only before raw_frame is handed off to add_to_filter_queue(),
-     * so it is never touched here - only the scratch buffers need freeing. */
-    if( anc_buf )
-        av_free( anc_buf );
-
-    if( vbi_buf )
-        av_free( vbi_buf );
-
+     * so it is never touched here. anc_buf/vbi_buf alias decklink_ctx's
+     * reused scratch buffers (freed once in close_card()), not per-frame
+     * allocations, so they must not be freed here. */
     if( frame )
         av_frame_free( &frame );
 
@@ -2396,11 +2429,9 @@ fail:
      * never by fall-through on success, so counting every visit here is safe. */
     g_decklink_frame_error_count++;
 
-    if( anc_buf )
-        av_free( anc_buf );
-
-    if( vbi_buf )
-        av_free( vbi_buf );
+    /* anc_buf/vbi_buf alias decklink_ctx's reused scratch buffers (freed
+     * once in close_card()), not per-frame allocations, so they must not
+     * be freed here. */
 
     if( raw_frame )
     {
@@ -2425,6 +2456,20 @@ static void close_card( decklink_opts_t *decklink_opts )
      * open_card()'s own failure path and again via the pthread cleanup
      * handler in open_input()) is a harmless no-op instead of a
      * double-free/use-after-free. */
+
+    if( decklink_ctx->anc_scratch_buf )
+    {
+        av_free( decklink_ctx->anc_scratch_buf );
+        decklink_ctx->anc_scratch_buf = NULL;
+        decklink_ctx->anc_scratch_buf_size = 0;
+    }
+
+    if( decklink_ctx->vbi_scratch_buf )
+    {
+        av_free( decklink_ctx->vbi_scratch_buf );
+        decklink_ctx->vbi_scratch_buf = NULL;
+        decklink_ctx->vbi_scratch_buf_size = 0;
+    }
 
     if( decklink_ctx->p_config )
     {
@@ -2539,7 +2584,7 @@ static int cb_EIA_608(void *callback_context, struct klvanc_context_s *ctx, stru
 /* For a given SCTE35 stream 0..N, find it */
 static int findOutputStreamIdByFormat(decklink_ctx_t *decklink_ctx, enum stream_type_e stype, enum stream_formats_e fmt, int instancenr)
 {
-	if (decklink_ctx && decklink_ctx->device == NULL)
+	if (!decklink_ctx || decklink_ctx->device == NULL)
 		return -1;
 
     int instance = 0;
@@ -2559,7 +2604,7 @@ static int findOutputStreamIdByFormat(decklink_ctx_t *decklink_ctx, enum stream_
  */
 static int add_metadata_scte104_vanc_section(decklink_ctx_t *decklink_ctx,
 	struct avmetadata_s *md,
-	uint8_t *section, uint32_t section_length, int lineNr, int streamId)
+	const uint8_t *section, uint32_t section_length, int lineNr, int streamId)
 {
 	/* Put the coded frame into an raw_frame attachment and discard the coded frame. */
 	int idx = md->count;
@@ -2582,7 +2627,7 @@ static int add_metadata_scte104_vanc_section(decklink_ctx_t *decklink_ctx,
 	return 0;
 }
 
-static int transmit_pes_to_muxer(decklink_ctx_t *decklink_ctx, uint8_t *buf, uint32_t byteCount, stream_formats_e stream_format)
+static int transmit_pes_to_muxer(decklink_ctx_t *decklink_ctx, const uint8_t *buf, uint32_t byteCount, stream_formats_e stream_format)
 {
 	int streamId = findOutputStreamIdByFormat(decklink_ctx, STREAM_TYPE_MISC, stream_format, 0);
 	if (streamId < 0)
