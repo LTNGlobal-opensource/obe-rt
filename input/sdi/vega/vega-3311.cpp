@@ -792,9 +792,10 @@ static void *vega_probe_stream(void *ptr)
 	add_device(h, device);
 
 finish:
-	opts->probe = 0;
-	if (opts)
+	if (opts) {
+		opts->probe = 0;
 		free(opts);
+	}
 
 	free(probe_ctx);
 
