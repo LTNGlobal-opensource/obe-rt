@@ -679,6 +679,7 @@ static int open_device(dektec_opts_t *opts, int mute)
 	ctx->codec = avcodec_alloc_context3(ctx->dec);
 	if (!ctx->codec) {
 		fprintf(stderr, MODULE_PREFIX "Could not allocate a codec context\n");
+		return -1;
 	}
 
 	ctx->codec->get_buffer2 = obe_get_buffer2;

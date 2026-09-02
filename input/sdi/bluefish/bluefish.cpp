@@ -648,11 +648,13 @@ static int open_device(bluefish_opts_t *opts)
 	ctx->codec = avcodec_alloc_context3(ctx->dec);
 	if (!ctx->codec) {
 		fprintf(stderr, MODULE_PREFIX "Could not allocate a codec context\n");
+		return -1;
 	}
 
 	ctx->avr = avresample_alloc_context();
         if (!ctx->avr) {
             fprintf(stderr, MODULE_PREFIX "Unable to alloc avresample context\n");
+            return -1;
         }
 
 	/* Give libavresample our custom audio channel map */

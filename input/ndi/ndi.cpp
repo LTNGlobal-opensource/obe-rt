@@ -977,11 +977,13 @@ printf("Reducing input framerate by 2\n");
 	ctx->codec = avcodec_alloc_context3(ctx->dec);
 	if (!ctx->codec) {
 		fprintf(stderr, MODULE_PREFIX "Could not allocate a codec context\n");
+		return -1;
 	}
 
 	ctx->avr = swr_alloc();
         if (!ctx->avr) {
             fprintf(stderr, MODULE_PREFIX "Unable to alloc libswresample context\n");
+            return -1;
         }
 
 	/* Give libavresample our custom audio channel map */
