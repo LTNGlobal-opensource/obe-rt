@@ -268,7 +268,7 @@ int64_t sanitizeParamTrim(int64_t val)
 static char *getSoftwareVersion()
 {
     char *msg = malloc(128);
-    sprintf(msg, "Version %d.%d.%d (" GIT_VERSION ")",
+    snprintf(msg, 128, "Version %d.%d.%d (" GIT_VERSION ")",
 	VERSION_MAJOR,
 	VERSION_MINOR,
 	VERSION_PATCH);
@@ -979,7 +979,7 @@ extern char g_video_encoder_preset_name[64];
                     obe_populate_avc_encoder_params(cli.h,  input_stream->input_stream_id
 			/* cli.program.streams[i].input_stream_id */, avc_param, preset_name);
                 } else {
-                    sprintf(g_video_encoder_preset_name, "very-fast");
+                    snprintf(g_video_encoder_preset_name, sizeof(g_video_encoder_preset_name), "very-fast");
                     obe_populate_avc_encoder_params(cli.h, input_stream->input_stream_id
 			/* cli.program.streams[i].input_stream_id */, avc_param, "veryfast");
                 }
@@ -3104,14 +3104,15 @@ int main( int argc, char **argv )
         }
     }
 
-    history_filename = malloc( strlen( home_dir ) + 16 + 1 );
+    size_t history_filename_size = strlen( home_dir ) + 16 + 1;
+    history_filename = malloc( history_filename_size );
     if( !history_filename )
     {
         fprintf( stderr, "malloc failed\n" );
         return -1;
     }
 
-    sprintf( history_filename, "%s/.obecli_history", home_dir );
+    snprintf( history_filename, history_filename_size, "%s/.obecli_history", home_dir );
     read_history(history_filename);
 
     cli.h = obe_setup(syslogSuffix);
@@ -3138,7 +3139,7 @@ int main( int argc, char **argv )
                 fprintf(stderr, "Unable to allocate ram for script command, aborting.\n");
                 break;
             }
-            sprintf(line_read, "@%s", script);
+            snprintf(line_read, 256, "@%s", script);
             scriptInitialized = 1;
         } else
             line_read = readline( prompt );
@@ -3293,8 +3294,8 @@ static void *runtime_statistics_thread(void *p)
 		 * 4. encoder 0 (video codec) raw frame queue depth
 		 * 5..... cpu thermals in degC.
 		 */
-		sprintf(APPEND(line), ",pid=%d", getpid());
-		sprintf(APPEND(line), ",bps=%d", g_udp_output_bps);
+		snprintf(APPEND(line), sizeof(line) - strlen(line), ",pid=%d", getpid());
+		snprintf(APPEND(line), sizeof(line) - strlen(line), ",bps=%d", g_udp_output_bps);
 
 		// /sys/devices/platform/coretemp.0/hwmon/hwmon1
 
@@ -3303,23 +3304,23 @@ static void *runtime_statistics_thread(void *p)
 			obe_output_stream_t *e = obe_core_get_output_stream_by_index(h, i);
 			if (e->stream_action == STREAM_ENCODE && i == 0) {
 				obe_queue_t *q = &h->encoders[i]->queue;
-				sprintf(APPEND(line), ",ve_q=%d", q->size);
+				snprintf(APPEND(line), sizeof(line) - strlen(line), ",ve_q=%d", q->size);
 				break;
 			}
 		}
 
 		/* Mux */
-		sprintf(APPEND(line), ",mux_dtstotal=%" PRIi64, g_mux_dtstotal);
+		snprintf(APPEND(line), sizeof(line) - strlen(line), ",mux_dtstotal=%" PRIi64, g_mux_dtstotal);
 
 		/* Thermals */
 		if (ctx->thermal_bm == 0) {
 			char tmp[256];
 			for (int i = 0; i < 63; i++) {
 				char fn[256];
-				sprintf(fn, "/sys/devices/platform/coretemp.0/hwmon/hwmon1/temp%d_label", i);
+				snprintf(fn, sizeof(fn), "/sys/devices/platform/coretemp.0/hwmon/hwmon1/temp%d_label", i);
 				FILE *fh = fopen(fn, "rb");
 				if (!fh) {
-					sprintf(fn, "/sys/devices/platform/coretemp.0/hwmon/hwmon2/temp%d_label", i);
+					snprintf(fn, sizeof(fn), "/sys/devices/platform/coretemp.0/hwmon/hwmon2/temp%d_label", i);
 					fh = fopen(fn, "rb");
 					if (!fh)
 						continue;
@@ -3344,10 +3345,10 @@ static void *runtime_statistics_thread(void *p)
 
 				char fn[256];
 				char val[16];
-				sprintf(fn, "/sys/devices/platform/coretemp.0/hwmon/hwmon1/temp%d_input", i);
+				snprintf(fn, sizeof(fn), "/sys/devices/platform/coretemp.0/hwmon/hwmon1/temp%d_input", i);
 				FILE *fh = fopen(fn, "rb");
 				if (!fh) {
-					sprintf(fn, "/sys/devices/platform/coretemp.0/hwmon/hwmon2/temp%d_input", i);
+					snprintf(fn, sizeof(fn), "/sys/devices/platform/coretemp.0/hwmon/hwmon2/temp%d_input", i);
 					fh = fopen(fn, "rb");
 					if (!fh)
 						continue;
@@ -3358,25 +3359,25 @@ static void *runtime_statistics_thread(void *p)
                     core_temp = atoi(val) / 1000;
 
 				fclose(fh);
-				sprintf(APPEND(line),",cpu%d_temp=%d", t++, atoi(val) / 1000);
+				snprintf(APPEND(line), sizeof(line) - strlen(line), ",cpu%d_temp=%d", t++, atoi(val) / 1000);
 			}
 		}
 
 		/* Load averages */
 		double la[3] = { 0.0, 0.0, 0.0 };
 		if (getloadavg(&la[0], 3) == 3) {
-			sprintf(APPEND(line),",load1=%.02f,load5=%.02f,load15=%.02f", la[0], la[1], la[2]);
+			snprintf(APPEND(line), sizeof(line) - strlen(line), ",load1=%.02f,load5=%.02f,load15=%.02f", la[0], la[1], la[2]);
 		}
 
 		char msg[256];
-		sprintf(msg, "ts=%s%s\n", ts, line);
+		snprintf(msg, sizeof(msg), "ts=%s%s\n", ts, line);
 
 		if (g_core_runtime_statistics_to_file > 1)
 			printf("%s", msg);
 
         if (g_core_runtime_statistics_to_file) {
             char statsfile[256];
-            sprintf(statsfile, "/tmp/%d-obe-runtime-statistics.log", getpid());
+            snprintf(statsfile, sizeof(statsfile), "/tmp/%d-obe-runtime-statistics.log", getpid());
             FILE *fh = fopen(statsfile, "a+");
             if (fh) {
                 fwrite(msg, 1, strlen(msg), fh);
@@ -3441,16 +3442,16 @@ static void *runtime_statistics_thread(void *p)
         json_object_object_add(plat, "pkg_version", json_object_new_string(encoder_vers));
 
         char s[64];
-        sprintf(s, "LTN%d", obe_core_get_platform_model());
+        snprintf(s, sizeof(s), "LTN%d", obe_core_get_platform_model());
         json_object_object_add(plat, "model", json_object_new_string(s));
 
         json_object_object_add(plat, "pid", json_object_new_int64(getpid()));
 
-        sprintf(s, "%5.02f", la[0]);
+        snprintf(s, sizeof(s), "%5.02f", la[0]);
         json_object_object_add(plat, "la1", json_object_new_string(s));
-        sprintf(s, "%5.02f", la[1]);
+        snprintf(s, sizeof(s), "%5.02f", la[1]);
         json_object_object_add(plat, "la5", json_object_new_string(s));
-        sprintf(s, "%5.02f", la[2]);
+        snprintf(s, sizeof(s), "%5.02f", la[2]);
         json_object_object_add(plat, "la15", json_object_new_string(s));
 
         json_object_object_add(plat, "temperature", json_object_new_int64(core_temp));
@@ -3483,7 +3484,7 @@ static void *runtime_statistics_thread(void *p)
         json_object_object_add(j, "platform", plat); /* End of platform */
 
         json_object *sig = json_object_new_object();
-        sprintf(s, "/analyzer/%s", basename(g_filter_video_fullsize_jpg_filename));
+        snprintf(s, sizeof(s), "/analyzer/%s", basename(g_filter_video_fullsize_jpg_filename));
         json_object_object_add(sig, "thumbnail", json_object_new_string(s));
         json_object_object_add(sig, "type", json_object_new_string(g_device_input_type));
         json_object_object_add(sig, "inputport", json_object_new_string(g_device_input_port));
@@ -3526,12 +3527,12 @@ static void *runtime_statistics_thread(void *p)
         /* SDI audio levels */
         for (int i = 0; i < 16; i++) {
             char l[32], m[32];
-            sprintf(l, "a%d_level", i + 1);
-            sprintf(m, "%6.1f", g_audio_channel_level_dbfs[i]);
+            snprintf(l, sizeof(l), "a%d_level", i + 1);
+            snprintf(m, sizeof(m), "%6.1f", g_audio_channel_level_dbfs[i]);
             json_object_object_add(j, l, json_object_new_double(g_audio_channel_level_dbfs[i]));
 
-            sprintf(l, "a%d_type", i + 1);
-            sprintf(m, "%s",
+            snprintf(l, sizeof(l), "a%d_type", i + 1);
+            snprintf(m, sizeof(m), "%s",
                 g_audio_channel_type[i] == 1 ? "pcm" :
                 g_audio_channel_type[i] == 2 ? "bitstream" : "NA");
 
@@ -3558,14 +3559,14 @@ static void *runtime_statistics_thread(void *p)
 
         json_object *p1 = json_object_new_object();
 
-        sprintf(s, "0x%04x (%4d)", 32, 32);
+        snprintf(s, sizeof(s), "0x%04x (%4d)", 32, 32);
         json_object_object_add(p1, "nr", json_object_new_string(s));
         json_object_object_add(p1, "cc", json_object_new_int64(1));
         json_object_object_add(p1, "type", json_object_new_string("video"));
         json_object_array_add(pids, p1);
 
         json_object *p2 = json_object_new_object();
-        sprintf(s, "0x%04x (%4d)", 33, 33);
+        snprintf(s, sizeof(s), "0x%04x (%4d)", 33, 33);
         json_object_object_add(p2, "nr", json_object_new_string(s));
         json_object_object_add(p2, "cc", json_object_new_int64(2));
         json_object_object_add(p2, "type", json_object_new_string("audio"));
@@ -3656,7 +3657,7 @@ static void *terminate_after_thread(void *p)
 	char ts[64];
 	char line[256] = { 0 };
 
-	sprintf(line, MODULE_PREFIX "WARNING: process configured to self terminate in %lu seconds.\n", ctx->terminateWhen - time(NULL));
+	snprintf(line, sizeof(line), MODULE_PREFIX "WARNING: process configured to self terminate in %lu seconds.\n", ctx->terminateWhen - time(NULL));
 	fprintf(stderr, "%s", line);
 	syslog(LOG_INFO | LOG_LOCAL4, "%s", line);
 
@@ -3666,7 +3667,7 @@ static void *terminate_after_thread(void *p)
 		time_t now = time(NULL);
 		if (now >= ctx->terminateWhen) {
 			obe_getTimestamp(ts, NULL);
-			sprintf(line, MODULE_PREFIX "FATAL: Self terminating on command.\n");
+			snprintf(line, sizeof(line), MODULE_PREFIX "FATAL: Self terminating on command.\n");
 			fprintf(stderr, "%s", line);
 			syslog(LOG_INFO | LOG_LOCAL4, "%s", line);
 			exit(0);
