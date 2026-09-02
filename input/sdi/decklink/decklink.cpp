@@ -885,7 +885,7 @@ static int processAudio(decklink_ctx_t *decklink_ctx, decklink_opts_t *decklink_
                               raw_frame->audio_frame.num_samples, (AVSampleFormat)raw_frame->audio_frame.sample_fmt, 0 ) < 0 )
                 {
                     syslog( LOG_ERR, "Malloc failed\n" );
-                    return -1;
+                    goto fail;
                 }
 
                 /* Convert input samples from S32 interleaved into S32P planer. */
@@ -896,7 +896,7 @@ static int processAudio(decklink_ctx_t *decklink_ctx, decklink_opts_t *decklink_
                         raw_frame->audio_frame.num_samples) < 0)
                 {
                     syslog(LOG_ERR, PREFIX "Sample format conversion failed\n");
-                    return -1;
+                    goto fail;
                 }
 
                 raw_frame->pts = queryAudioClock(audioframe);
@@ -930,12 +930,23 @@ static int processAudio(decklink_ctx_t *decklink_ctx, decklink_opts_t *decklink_
                 int span = 2;
                 int offset = i * ((depth / 8) * span);
                 raw_frame = new_raw_frame();
+                if (!raw_frame) {
+                    syslog(LOG_ERR, "Malloc failed\n");
+                    goto fail;
+                }
                 raw_frame->audio_frame.num_samples = audioframe->GetSampleFrameCount();
                 raw_frame->audio_frame.num_channels = decklink_opts_->num_channels;
                 raw_frame->audio_frame.sample_fmt = AV_SAMPLE_FMT_S32P; /* No specific format. The audio filter will play passthrough. */
 
                 int l = audioframe->GetSampleFrameCount() * decklink_opts_->num_channels * (depth / 8);
-                raw_frame->audio_frame.audio_data[0] = (uint8_t *)malloc(l);
+                /* calloc (not malloc): only l - offset bytes get copied in below,
+                 * so the buffer must be zeroed or the tail bytes we ship downstream
+                 * to the muxer would be uninitialized heap memory. */
+                raw_frame->audio_frame.audio_data[0] = (uint8_t *)calloc(1, l);
+                if (!raw_frame->audio_frame.audio_data[0]) {
+                    syslog(LOG_ERR, "Malloc failed\n");
+                    goto fail;
+                }
                 raw_frame->audio_frame.linesize = raw_frame->audio_frame.num_channels * (depth / 8);
 
 		/* Move the audio to allign the bitstream audio in this specific pair into pair0 then send the buffer downstream. */
@@ -961,24 +972,28 @@ static int processAudio(decklink_ctx_t *decklink_ctx, decklink_opts_t *decklink_
                 raw_frame->input_stream_id = pair->input_stream_id;
                 //printf("frame for pair->nr %d rf->input_stream_id %d at offset %d\n", pair->nr, raw_frame->input_stream_id, offset);
 
-                add_to_filter_queue(decklink_ctx->h, raw_frame);
+                if (add_to_filter_queue(decklink_ctx->h, raw_frame) < 0)
+                    goto fail;
             } /* pair->smpte337_detected_ac3 */
         } /* For all audio pairs... */
 end:
 
-    return S_OK;
+    return 0;
 
 fail:
 
     if( raw_frame )
     {
-        if (raw_frame->release_data)
-            raw_frame->release_data( raw_frame );
-        if (raw_frame->release_frame)
-            raw_frame->release_frame( raw_frame );
+        /* Call the release functions directly rather than through
+         * raw_frame->release_data/release_frame: on the early failure
+         * paths above those callbacks have not been assigned yet, but
+         * calling obe_release_audio_data()/obe_release_frame() directly
+         * is safe and idempotent with what they would have pointed to. */
+        obe_release_audio_data( raw_frame );
+        obe_release_frame( raw_frame );
     }
 
-    return S_OK;
+    return -1;
 }
 
 #if DO_SET_VARIABLE
@@ -1086,6 +1101,11 @@ time_t        g_decklink_missing_audio_last_time = 0;
 int           g_decklink_missing_video_count = 0;
 time_t        g_decklink_missing_video_last_time = 0;
 
+/* Counts internal failures in timedVideoInputFrameArrived() (malloc/decode/
+ * VANC/queue errors) that are logged but must still return S_OK to the
+ * DeckLink SDK, so they would otherwise be invisible outside the log. */
+int           g_decklink_frame_error_count = 0;
+
 int           g_decklink_record_audio_buffers = 0;
 
 int           g_decklink_render_walltime = 0;
@@ -1105,16 +1125,30 @@ struct udp_vanc_receiver_s {
     int bufmaxlen;
 } g_decklink_udp_vanc_receiver;
 int g_decklink_udp_vanc_receiver_port; /* UDP Port number to activate a VANC receiver on */
+/* g_decklink_udp_vanc_receiver is shared across every card's capture-callback
+ * thread: its lazy init below is a check-then-act (racy if two cards start up
+ * concurrently) and vr->buf is a shared scratch buffer written on every recv,
+ * so both the init and the receive/parse must be serialized. */
+static pthread_mutex_t g_decklink_udp_vanc_receiver_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+/* 'cached' is shared by every card's capture-callback thread (one card's
+ * cache_video_frame() can run concurrently with another card's
+ * noVideoInputFrameArrived() reading/copying it), so all access must be
+ * serialized to avoid a use-after-free of the previous cached frame. */
+static pthread_mutex_t cached_frame_mutex = PTHREAD_MUTEX_INITIALIZER;
 static obe_raw_frame_t *cached = NULL;
 static void cache_video_frame(obe_raw_frame_t *frame)
 {
+    pthread_mutex_lock(&cached_frame_mutex);
+
     if (cached != NULL) {
         cached->release_data(cached);
         cached->release_frame(cached);
     }
 
     cached = obe_raw_frame_copy(frame);
+
+    pthread_mutex_unlock(&cached_frame_mutex);
 }
 
 HRESULT DeckLinkCaptureDelegate::noVideoInputFrameArrived(IDeckLinkVideoInputFrame *videoframe, IDeckLinkAudioInputPacket *audioframe)
@@ -1123,8 +1157,11 @@ HRESULT DeckLinkCaptureDelegate::noVideoInputFrameArrived(IDeckLinkVideoInputFra
 //struct timespec g_ce708_detected_ts;
 //struct timespec g_smpe2038_detected_ts;
 
-	if (!cached)
+	pthread_mutex_lock(&cached_frame_mutex);
+	if (!cached) {
+		pthread_mutex_unlock(&cached_frame_mutex);
 		return S_OK;
+	}
 
 	g_decklink_injected_frame_count++;
 	if (g_decklink_injected_frame_count > g_decklink_injected_frame_count_max) {
@@ -1146,6 +1183,7 @@ HRESULT DeckLinkCaptureDelegate::noVideoInputFrameArrived(IDeckLinkVideoInputFra
 	obe_clock_tick(h, (int64_t)decklink_ctx->stream_time);
 
 	obe_raw_frame_t *raw_frame = obe_raw_frame_copy(cached);
+	pthread_mutex_unlock(&cached_frame_mutex);
 	raw_frame->pts = decklink_ctx->stream_time;
 
 	avfm_set_pts_video(&raw_frame->avfm, decklink_ctx->stream_time + clock_offset);
@@ -1376,8 +1414,8 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
     int ret, num_anc_lines = 0, anc_line_stride,
     first_line = 0, last_line = 0, line, num_vbi_lines, vii_line;
     uint32_t *frame_ptr;
-    uint16_t *anc_buf, *anc_buf_pos;
-    uint8_t *vbi_buf;
+    uint16_t *anc_buf = NULL, *anc_buf_pos = NULL;
+    uint8_t *vbi_buf = NULL;
     int anc_lines[DECKLINK_VANC_LINES];
     IDeckLinkVideoFrameAncillary *ancillary;
     BMDTimeValue frame_duration;
@@ -1825,86 +1863,102 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
         if( !anc_buf )
         {
             syslog( LOG_ERR, "Malloc failed\n" );
+            g_decklink_frame_error_count++;
             goto end;
         }
 
         /* VANC Receiver for Decklink injection */
         struct udp_vanc_receiver_s *vr = &g_decklink_udp_vanc_receiver;
-        if (g_decklink_udp_vanc_receiver_port && vr->active == 0) {
+        if (g_decklink_udp_vanc_receiver_port) {
+            pthread_mutex_lock(&g_decklink_udp_vanc_receiver_mutex);
 
-            /* Initialize the UDP socket */
-            do {
+            if (vr->active == 0) {
+                /* Initialize the UDP socket. Re-entrant-safe against a prior
+                 * failed attempt: don't re-allocate vr->buf if it already
+                 * exists, and close any socket opened by this attempt before
+                 * giving up on a later step. */
+                do {
+                    if (!vr->buf) {
+                        vr->bufmaxlen = 65536;
+                        vr->buf = (unsigned char *)malloc(vr->bufmaxlen);
+                        if (!vr->buf) {
+                            fprintf(stderr, "[decklink] unable to allocate vanc_receiver buffer\n");
+                            break;
+                        }
+                    }
 
-                vr->bufmaxlen = 65536;
-                vr->buf = (unsigned char *)malloc(vr->bufmaxlen);
-                if (!vr->buf) {
-            		fprintf(stderr, "[decklink] unable to allocate vanc_receiver buffer\n");
-                    break;
-                }
+                    vr->skt = socket(AF_INET, SOCK_DGRAM, 0);
+                    if (vr->skt < 0) {
+                        fprintf(stderr, "[decklink] unable to allocate vanc_receiver socket\n");
+                        break;
+                    }
 
-                vr->skt = socket(AF_INET, SOCK_DGRAM, 0);
-                if (vr->skt < 0) {
-            		fprintf(stderr, "[decklink] unable to allocate vanc_receiver socket\n");
-                    break;
-                }
+                    int reuse = 1;
+                    if (setsockopt(vr->skt, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+                        fprintf(stderr, "[decklink] unable to configure vanc_receiver socket\n");
+                        close(vr->skt);
+                        vr->skt = -1;
+                        break;
+                    }
 
-                int reuse = 1;
-                if (setsockopt(vr->skt, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-            		fprintf(stderr, "[decklink] unable to configure vanc_receiver socket\n");
-                    break;
-                }
+                    vr->sin.sin_family = AF_INET;
+                    vr->sin.sin_port = htons(g_decklink_udp_vanc_receiver_port);
+                    vr->sin.sin_addr.s_addr = inet_addr("0.0.0.0");
+                    if (bind(vr->skt, (struct sockaddr *)&vr->sin, sizeof(vr->sin)) < 0) {
+                        fprintf(stderr, "[decklink] unable to bind vanc_receiver socket\n");
+                        close(vr->skt);
+                        vr->skt = -1;
+                        break;
+                    }
 
-                vr->sin.sin_family = AF_INET;
-                vr->sin.sin_port = htons(g_decklink_udp_vanc_receiver_port);
-                vr->sin.sin_addr.s_addr = inet_addr("0.0.0.0");
-                if (bind(vr->skt, (struct sockaddr *)&vr->sin, sizeof(vr->sin)) < 0) {
-            		fprintf(stderr, "[decklink] unable to bind vanc_receiver socket\n");
-                    break;
-                }
+                    /* Non-blocking required */
+                    int fl = fcntl(vr->skt, F_GETFL, 0);
+                    if (fcntl(vr->skt, F_SETFL, fl | O_NONBLOCK) < 0) {
+                        fprintf(stderr, "[decklink] unable to non-block vanc_receiver socket\n");
+                        close(vr->skt);
+                        vr->skt = -1;
+                        break;
+                    }
 
-                /* Non-blocking required */
-                int fl = fcntl(vr->skt, F_GETFL, 0);
-                if (fcntl(vr->skt, F_SETFL, fl | O_NONBLOCK) < 0) {
-            		fprintf(stderr, "[decklink] unable to non-block vanc_receiver socket\n");
-                    break;
-                }
+                    /* Success */
+                    vr->active = 1;
+                } while (0);
+            }
 
-                /* Success */
-                vr->active = 1;
-            } while (0);
-        }
-
-        if (g_decklink_udp_vanc_receiver_port && vr->active) {
-            /* Receive any pending message. Reserve 8 bytes of headroom in the
-             * buffer for the padding written below, so a full-size datagram
-             * can never cause the pad loop to write past the end of vr->buf. */
-            ssize_t len = recv(vr->skt, vr->buf, vr->bufmaxlen - 8, 0);
-            if (len > 0) {
-                /* Padd the end of the message  */
-                for (int i = len; i < len + 8; i+= 2) {
-                    vr->buf[i + 0] = 0x40;
-                    vr->buf[i + 1] = 0x00;
-                }
-                len += 8;
-                printf("vanc_receiver recd: %d bytes [ ", (int)len);
-                for (int i = 0; i < len; i++) {
-                    printf("0x%02x ", vr->buf[i]);
-                }
-                printf("]\n");
-                endian_flip_array(vr->buf, len);
-                ret = _vancparse(decklink_ctx->vanchdl, vr->buf, len, 10);
-                if (ret < 0) {
-                    fprintf(stderr, "%s() Unable to parse vanc_receiver message\n", __func__);
-                } else {
+            if (vr->active) {
+                /* Receive any pending message. Reserve 8 bytes of headroom in the
+                 * buffer for the padding written below, so a full-size datagram
+                 * can never cause the pad loop to write past the end of vr->buf. */
+                ssize_t len = recv(vr->skt, vr->buf, vr->bufmaxlen - 8, 0);
+                if (len > 0) {
+                    /* Padd the end of the message  */
+                    for (int i = len; i < len + 8; i+= 2) {
+                        vr->buf[i + 0] = 0x40;
+                        vr->buf[i + 1] = 0x00;
+                    }
+                    len += 8;
+                    printf("vanc_receiver recd: %d bytes [ ", (int)len);
+                    for (int i = 0; i < len; i++) {
+                        printf("0x%02x ", vr->buf[i]);
+                    }
+                    printf("]\n");
+                    endian_flip_array(vr->buf, len);
+                    ret = _vancparse(decklink_ctx->vanchdl, vr->buf, len, 10);
+                    if (ret < 0) {
+                        fprintf(stderr, "%s() Unable to parse vanc_receiver message\n", __func__);
+                    } else {
 #if 0
-                    /* Paint a message in the V210, so we know per frame when an event was received. */
-                    videoframe->GetBytes(&frame_bytes);
-                    struct V210_painter_s painter;
-                    V210_painter_reset(&painter, (unsigned char *)frame_bytes, width, height, stride, 0);
-                    V210_painter_draw_ascii_at(&painter, 0, 3, "vanc_receiver msg injected");
+                        /* Paint a message in the V210, so we know per frame when an event was received. */
+                        videoframe->GetBytes(&frame_bytes);
+                        struct V210_painter_s painter;
+                        V210_painter_reset(&painter, (unsigned char *)frame_bytes, width, height, stride, 0);
+                        V210_painter_draw_ascii_at(&painter, 0, 3, "vanc_receiver msg injected");
 #endif
+                    }
                 }
             }
+
+            pthread_mutex_unlock(&g_decklink_udp_vanc_receiver_mutex);
         }
 
         if (g_decklink_inject_scte104_preroll6000 > 0 && videoframe) {
@@ -2039,6 +2093,7 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             if( !raw_frame )
             {
                 syslog( LOG_ERR, "Malloc failed\n" );
+                g_decklink_frame_error_count++;
                 goto end;
             }
         }
@@ -2057,7 +2112,13 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
                                                   USER_DATA_LOCATION_FRAME ) &&
             !check_active_non_display_data( raw_frame, USER_DATA_CEA_708_CDP ) )
         {
-            if (h->cea708_missing_count++ == 5)
+            /* h->cea708_missing_count is shared by every card's capture-callback
+             * thread on this obe_t, so increment/reset/compare must be serialized. */
+            pthread_mutex_lock(&h->device_list_mutex);
+            int missing_count = h->cea708_missing_count++;
+            pthread_mutex_unlock(&h->device_list_mutex);
+
+            if (missing_count == 5)
             {
                 /* FIXME: for now only support 1080i (i.e. cc_count=20) */
                 const struct obe_to_decklink_video *fmt = decklink_ctx->enabled_mode_fmt;
@@ -2067,7 +2128,9 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
                 }
             }
         } else {
+            pthread_mutex_lock(&h->device_list_mutex);
             h->cea708_missing_count = 0;
+            pthread_mutex_unlock(&h->device_list_mutex);
         }
 
         if( IS_SD( decklink_opts_->video_format ) && first_line != last_line )
@@ -2091,7 +2154,7 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             if( !vbi_buf )
             {
                 syslog( LOG_ERR, "Malloc failed\n" );
-                goto end;
+                goto fail;
             }
 
             /* Scale the lines from 10-bit to 8-bit */
@@ -2133,9 +2196,11 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             clock_gettime(CLOCK_REALTIME, &g_cea708_detected_ts);
 
             av_free( vbi_buf );
+            vbi_buf = NULL;
         }
 
         av_free( anc_buf );
+        anc_buf = NULL;
 
         if( !decklink_opts_->probe )
         {
@@ -2144,7 +2209,7 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             if( !frame )
             {
                 syslog( LOG_ERR, "[decklink]: Could not allocate video frame\n" );
-                goto end;
+                goto fail;
             }
             decklink_ctx->codec->width = width;
             decklink_ctx->codec->height = height;
@@ -2304,10 +2369,19 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
     ltn_histogram_sample_begin(decklink_ctx->callback_3_hdl);
     if( audioframe && !decklink_opts_->probe )
     {
-        processAudio(decklink_ctx, decklink_opts_, audioframe, decklink_ctx->stream_time);
+        if (processAudio(decklink_ctx, decklink_opts_, audioframe, decklink_ctx->stream_time) < 0)
+            syslog( LOG_ERR, "[decklink] processAudio() failed, dropping audio for this frame\n" );
     }
 
 end:
+    /* Reached only before raw_frame is handed off to add_to_filter_queue(),
+     * so it is never touched here - only the scratch buffers need freeing. */
+    if( anc_buf )
+        av_free( anc_buf );
+
+    if( vbi_buf )
+        av_free( vbi_buf );
+
     if( frame )
         av_frame_free( &frame );
 
@@ -2318,12 +2392,25 @@ end:
 
 fail:
 
+    /* fail: is only ever reached via an explicit goto on an error path,
+     * never by fall-through on success, so counting every visit here is safe. */
+    g_decklink_frame_error_count++;
+
+    if( anc_buf )
+        av_free( anc_buf );
+
+    if( vbi_buf )
+        av_free( vbi_buf );
+
     if( raw_frame )
     {
-        if (raw_frame->release_data)
-            raw_frame->release_data( raw_frame );
-        if (raw_frame->release_frame)
-            raw_frame->release_frame( raw_frame );
+        /* Call the release functions directly rather than through
+         * raw_frame->release_data/release_frame: on the early failure
+         * paths above those callbacks have not been assigned yet, but
+         * calling obe_release_video_data()/obe_release_frame() directly
+         * is safe and idempotent with what they would have pointed to. */
+        obe_release_video_data( raw_frame );
+        obe_release_frame( raw_frame );
     }
 
     return S_OK;
@@ -2374,6 +2461,31 @@ static void close_card( decklink_opts_t *decklink_opts )
     if (decklink_ctx->vanchdl) {
         klvanc_context_destroy(decklink_ctx->vanchdl);
         decklink_ctx->vanchdl = 0;
+    }
+
+    if (decklink_ctx->callback_hdl) {
+        ltn_histogram_free(decklink_ctx->callback_hdl);
+        decklink_ctx->callback_hdl = 0;
+    }
+    if (decklink_ctx->callback_duration_hdl) {
+        ltn_histogram_free(decklink_ctx->callback_duration_hdl);
+        decklink_ctx->callback_duration_hdl = 0;
+    }
+    if (decklink_ctx->callback_1_hdl) {
+        ltn_histogram_free(decklink_ctx->callback_1_hdl);
+        decklink_ctx->callback_1_hdl = 0;
+    }
+    if (decklink_ctx->callback_2_hdl) {
+        ltn_histogram_free(decklink_ctx->callback_2_hdl);
+        decklink_ctx->callback_2_hdl = 0;
+    }
+    if (decklink_ctx->callback_3_hdl) {
+        ltn_histogram_free(decklink_ctx->callback_3_hdl);
+        decklink_ctx->callback_3_hdl = 0;
+    }
+    if (decklink_ctx->callback_4_hdl) {
+        ltn_histogram_free(decklink_ctx->callback_4_hdl);
+        decklink_ctx->callback_4_hdl = 0;
     }
 
     if (decklink_ctx->sdi_audio_analyzer_ctx) {
@@ -3644,11 +3756,23 @@ static void *probe_stream( void *ptr )
     memcpy( &device->user_opts, user_opts, sizeof(*user_opts) );
 
     /* Upstream is responsible for freeing streams[x] allocations */
+    /* Ownership of streams[0..cur_stream-1] has now passed to device;
+     * reset cur_stream so the cleanup below (shared with the failure
+     * paths above) does not also free them. */
+    cur_stream = 0;
 
     /* add device */
     add_device( h, device );
 
 finish:
+    /* On any failure path reached before ownership transfer above,
+     * free whatever streams[] entries were already allocated. */
+    for( int i = 0; i < cur_stream; i++ )
+    {
+        if( streams[i] )
+            free( streams[i] );
+    }
+
     if( decklink_opts )
         free( decklink_opts );
 
