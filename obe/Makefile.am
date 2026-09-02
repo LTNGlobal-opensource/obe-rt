@@ -25,7 +25,12 @@ CFLAGS += -g -Wall -DVERSION=\"$(VERSION)\" -DPROG="\"$(PACKAGE)\"" -D_FILE_OFFS
 LDFLAGS += -lpthread -lz -lx264 -lyuv
 LDFLAGS += -lavformat -lavcodec -ldl -lfdk-aac -lbz2 -lz -lswscale -lavutil -lm -lswresample
 LDFLAGS += -lklscte35 -lklvanc -llzma
-LDFLAGS += -ltwolame -lmpegts -lstdc++ -ldl -lzvbi /usr/lib64/libreadline.a -lcurses -lltntstools
+LDFLAGS += -ltwolame -lmpegts -lstdc++ -ldl -lzvbi -lcurses -lltntstools
+if AVFOUNDATION
+LDFLAGS += /opt/homebrew/Cellar/readline/8.3.3/lib/libreadline.a
+else
+LDFLAGS += /usr/lib64/libreadline.a
+endif
 LDFLAGS += -lcurl
 LDFLAGS += -lltnsdi
 LDFLAGS += -ljson-c
@@ -150,13 +155,19 @@ obecli_SOURCES += ../common/vancprocessor.c
 obecli_SOURCES += ../common/scte104filtering.c
 obecli_SOURCES += ltn_ws.c
 obecli_SOURCES += osd.c
+if AVFOUNDATION
+else
 obecli_SOURCES += x86_sdi.o
 obecli_SOURCES += vfilter.o
+endif
 
+if AVFOUNDATION
+else
 obecli_DEPENDENCIES  = x86_sdi.o
 obecli_DEPENDENCIES += vfilter.o
 
 obecli_LDFLAGS = vfilter.o x86_sdi.o
+endif
 
 libklvanc_noinst_includedir = $(includedir)
 
