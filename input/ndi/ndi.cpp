@@ -66,7 +66,6 @@ extern "C"
 #include <libavutil/mathematics.h>
 #include <libavutil/bswap.h>
 #include <libyuv/convert.h>
-#include <alsa/asoundlib.h>
 }
 
 struct obe_to_ndi_video
