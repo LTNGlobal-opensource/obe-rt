@@ -700,9 +700,8 @@ static int set_input( char *command, obecli_command_t *child )
              if( cli.input.location )
                  free( cli.input.location );
 
-             cli.input.location = malloc( strlen( location ) + 1 );
+             cli.input.location = strdup( location );
              FAIL_IF_ERROR( !cli.input.location, "malloc failed\n" );
-             strcpy( cli.input.location, location );
         }
 
         cli.input.enable_allow_1080p60 = obe_otoi(allow_1080p60, cli.input.enable_allow_1080p60);
@@ -734,7 +733,7 @@ static int set_input( char *command, obecli_command_t *child )
     {
         FAIL_IF_ERROR( ( check_enum_value( command, input_types ) < 0 ), "Invalid input type\n" );
         parse_enum_value( command, input_types, &cli.input.input_type );
-        strcpy(&g_device_input_type[0], command);
+        snprintf(g_device_input_type, sizeof(g_device_input_type), "%s", command);
     }
 
     return 0;
@@ -976,7 +975,7 @@ static int set_stream( char *command, obecli_command_t *child )
 extern char g_video_encoder_preset_name[64];
 
                 if (preset_name) {
-                    strcpy(g_video_encoder_preset_name, preset_name);
+                    snprintf(g_video_encoder_preset_name, sizeof(g_video_encoder_preset_name), "%s", preset_name);
                     obe_populate_avc_encoder_params(cli.h,  input_stream->input_stream_id
 			/* cli.program.streams[i].input_stream_id */, avc_param, preset_name);
                 } else {
@@ -987,7 +986,7 @@ extern char g_video_encoder_preset_name[64];
 
 extern char g_video_encoder_tuning_name[64];
                 if (tuning_name) {
-                    strcpy(g_video_encoder_tuning_name, tuning_name);
+                    snprintf(g_video_encoder_tuning_name, sizeof(g_video_encoder_tuning_name), "%s", tuning_name);
                 } else {
                     g_video_encoder_tuning_name[0] = 0;
                 }
@@ -1094,7 +1093,7 @@ extern char g_video_encoder_tuning_name[64];
                 }
                 if (profile) {
                     parse_enum_value( profile, x264_profile_names, &cli.avc_profile );
-                    avc_param->i_profile = cli.avc_profile;
+//                    avc_param->i_profile = cli.avc_profile;
                 }
 
 #if 0
@@ -1204,7 +1203,8 @@ extern char g_video_encoder_tuning_name[64];
 
                 if (gain_db) {
                     /* Add the dB suffix so operators don't get this wrong */
-                    sprintf(&cli.output_streams[output_stream_id].gain_db[0], "%sdB", gain_db);
+                    snprintf(&cli.output_streams[output_stream_id].gain_db[0],
+                             sizeof(cli.output_streams[output_stream_id].gain_db), "%sdB", gain_db);
                     cli.output_streams[output_stream_id].audioGain = 1.0;
                 } else {
                     cli.output_streams[output_stream_id].gain_db[0] = 0;
@@ -1474,18 +1474,16 @@ static int set_muxer( char *command, obecli_command_t *child )
              if( cli.mux_opts.service_name )
                  free( cli.mux_opts.service_name );
 
-             cli.mux_opts.service_name = malloc( strlen( service_name ) + 1 );
+             cli.mux_opts.service_name = strdup( service_name );
              FAIL_IF_ERROR( !cli.mux_opts.service_name, "malloc failed\n" );
-             strcpy( cli.mux_opts.service_name, service_name );
         }
         if( provider_name )
         {
              if( cli.mux_opts.provider_name )
                  free( cli.mux_opts.provider_name );
 
-             cli.mux_opts.provider_name = malloc( strlen( provider_name ) + 1 );
+             cli.mux_opts.provider_name = strdup( provider_name );
              FAIL_IF_ERROR( !cli.mux_opts.provider_name, "malloc failed\n" );
-             strcpy( cli.mux_opts.provider_name, provider_name );
         }
         obe_free_string_array( opts );
     }
@@ -1878,26 +1876,31 @@ static int set_variable(char *command, obecli_command_t *child)
         return 0;
     }
 
-    if (sscanf(command, "%s = %" PRIi64, &var[0], &val) != 2) {
+    if (sscanf(command, "%255s = %" PRIi64, &var[0], &val) != 2) {
+        size_t offset;
         if (strncasecmp(var, "scte104.filter.add", 18) == 0) {
-            strcpy(&vars[0], &command[20]);
-            /* handle this below */
+            offset = 20;
         }
         else
         if (strncasecmp(var, "filter.video.create_fullsize_jpg", 32) == 0) {
-            strcpy(&vars[0], &command[35]);
-            /* handle this below */
+            offset = 35;
         } else
         if (strncasecmp(var, "core.runtime_statistics_to_url", 30) == 0) {
-            strcpy(&vars[0], &command[33]);
-            /* handle this below */
+            offset = 33;
         } else
         if (strncasecmp(var, "srt_output.stream_id", 20) == 0) {
-            strcpy(&vars[0], &command[23]);
+            offset = 23;
         } else {
             printf("illegal variable name.\n");
             return -1;
         }
+
+        if (strlen(command) < offset) {
+            printf("illegal variable name.\n");
+            return -1;
+        }
+        /* handle this below */
+        snprintf(vars, sizeof(vars), "%s", &command[offset]);
     }
 
     if (strcasecmp(var, "sdi_input.fake_60sec_lost_payload") == 0) {
@@ -2272,9 +2275,8 @@ static int set_output( char *command, obecli_command_t *child )
              if( cli.output.outputs[output_id].target )
                  free( cli.output.outputs[output_id].target );
 
-             cli.output.outputs[output_id].target = malloc( strlen( target ) + 1 );
+             cli.output.outputs[output_id].target = strdup( target );
              FAIL_IF_ERROR( !cli.output.outputs[output_id].target, "malloc failed\n" );
-             strcpy( cli.output.outputs[output_id].target, target );
         }
         obe_free_string_array( opts );
     }
@@ -3212,7 +3214,7 @@ void getISO8601(struct timespec *tspec, char *timestring)
     off += snprintf(buf+off, bufsize-off, ".%03ld", tp.tv_nsec/1000000);
     off += snprintf(buf+off, bufsize-off, "%c%02ld:%02ld", local->tm_gmtoff >= 0 ? '+' : '-', labs(local->tm_gmtoff)/3600, labs(local->tm_gmtoff)%3600/60); 
 
-    sprintf(timestring, buf);
+    snprintf(timestring, bufsize, "%s", buf);
 }
 
 
