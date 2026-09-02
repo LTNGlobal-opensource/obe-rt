@@ -1363,7 +1363,7 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
     void *frame_bytes, *anc_line;
     obe_t *h = decklink_ctx->h;
     int ret, num_anc_lines = 0, anc_line_stride,
-    lines_read = 0, first_line = 0, last_line = 0, line, num_vbi_lines, vii_line;
+    first_line = 0, last_line = 0, line, num_vbi_lines, vii_line;
     uint32_t *frame_ptr;
     uint16_t *anc_buf, *anc_buf_pos;
     uint8_t *vbi_buf;
@@ -2004,7 +2004,6 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
                 first_line = line;
             last_line = line;
 
-            lines_read++;
             line = sdi_next_line( decklink_opts_->video_format, line );
 
             if( line == first_active_line[j].line )
