@@ -803,7 +803,10 @@ static int processAudio(decklink_ctx_t *decklink_ctx, decklink_opts_t *decklink_
 {
     obe_raw_frame_t *raw_frame = NULL;
     void *frame_bytes;
-    audioframe->GetBytes(&frame_bytes);
+    if (audioframe->GetBytes(&frame_bytes) != S_OK || !frame_bytes) {
+        fprintf(stderr, "%s() Failed to get audio frame bytes\n", __func__);
+        return -1;
+    }
     int hasSentAudioBuffer = 0;
 
     uint32_t strideBytes = decklink_opts_->num_channels * (32 / 8);
@@ -1192,7 +1195,10 @@ HRESULT DeckLinkCaptureDelegate::processSMPTE2064(IDeckLinkVideoInputFrame *vide
         }
 
         const uint8_t *v = NULL;
-        videoframe->GetBytes((void **)&v);
+        if (videoframe->GetBytes((void **)&v) != S_OK || !v) {
+            printf(PREFIX "Error retrieving SMPTE2064 video frame bytes, skipping\n");
+            return S_OK;
+        }
 
         if (klsmpte2064_video_push(decklink_ctx->smpte2064_hdl, v) < 0) {
             printf(PREFIX " Error pushing SMPTE2064 framee\n");
@@ -1802,7 +1808,7 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
                 break;
         }
 
-        videoframe->GetAncillaryData( &ancillary );
+        HRESULT hr_ancillary = videoframe->GetAncillaryData( &ancillary );
 
         /* NTSC starts on line 4 */
         line = decklink_opts_->video_format == INPUT_VIDEO_FORMAT_NTSC ? 4 : 1;
@@ -1982,35 +1988,43 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
 	/* TODO: When using 4k formats, we crash in the blank_line func. fixme.
 	 *       When testing 4k, I completely remove this block.
 	 */
-        while( 1 )
+        if( hr_ancillary == S_OK && ancillary )
         {
-            /* Some cards have restrictions on what lines can be accessed so try them all
-             * Some buggy decklink cards will randomly refuse access to a particular line so
-             * work around this issue by blanking the line */
-            if( ancillary->GetBufferForVerticalBlankingLine( line, &anc_line ) == S_OK ) {
+            while( 1 )
+            {
+                /* Some cards have restrictions on what lines can be accessed so try them all
+                 * Some buggy decklink cards will randomly refuse access to a particular line so
+                 * work around this issue by blanking the line */
+                if( ancillary->GetBufferForVerticalBlankingLine( line, &anc_line ) == S_OK ) {
 
-                /* Give libklvanc a chance to parse all vanc, and call our callbacks (same thread) */
-                convert_colorspace_and_parse_vanc(decklink_ctx, decklink_ctx->vanchdl,
-                                                  (unsigned char *)anc_line, width, line);
+                    /* Give libklvanc a chance to parse all vanc, and call our callbacks (same thread) */
+                    convert_colorspace_and_parse_vanc(decklink_ctx, decklink_ctx->vanchdl,
+                                                      (unsigned char *)anc_line, width, line);
 
-                decklink_ctx->unpack_line( (uint32_t*)anc_line, anc_buf_pos, width );
-            } else
-                decklink_ctx->blank_line( anc_buf_pos, width );
+                    if( decklink_ctx->unpack_line )
+                        decklink_ctx->unpack_line( (uint32_t*)anc_line, anc_buf_pos, width );
+                } else {
+                    if( decklink_ctx->blank_line )
+                        decklink_ctx->blank_line( anc_buf_pos, width );
+                }
 
-            anc_buf_pos += anc_line_stride / 2;
-            anc_lines[num_anc_lines++] = line;
+                anc_buf_pos += anc_line_stride / 2;
+                anc_lines[num_anc_lines++] = line;
 
-            if( !first_line )
-                first_line = line;
-            last_line = line;
+                if( !first_line )
+                    first_line = line;
+                last_line = line;
 
-            line = sdi_next_line( decklink_opts_->video_format, line );
+                line = sdi_next_line( decklink_opts_->video_format, line );
 
-            if( line == first_active_line[j].line )
-                break;
+                if( line == first_active_line[j].line )
+                    break;
+            }
+
+            ancillary->Release();
+        } else {
+            syslog( LOG_WARNING, "%s() GetAncillaryData failed, skipping VANC for this frame\n", __func__ );
         }
-
-        ancillary->Release();
 
         if( !decklink_opts_->probe )
         {
@@ -2040,7 +2054,7 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             {
                 /* FIXME: for now only support 1080i (i.e. cc_count=20) */
                 const struct obe_to_decklink_video *fmt = decklink_ctx->enabled_mode_fmt;
-                if (fmt->timebase_num == 1001 && fmt->timebase_den == 30000) {
+                if (fmt && fmt->timebase_num == 1001 && fmt->timebase_den == 30000) {
                     uint8_t cdp[] = {0x96, 0x69, 0x49, 0x4f, 0x43, 0x02, 0x36, 0x72, 0xf4, 0xff, 0x02, 0x21, 0xfe, 0x8f, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0xf8, 0x00, 0x00, 0x74, 0x02, 0x36, 0xbd };
                     inject_708_cdp(h, raw_frame, cdp, sizeof(cdp));
                 }
@@ -2058,7 +2072,8 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             num_vbi_lines = NUM_ACTIVE_VBI_LINES + ( decklink_opts_->video_format == INPUT_VIDEO_FORMAT_NTSC );
             for( int i = 0; i < num_vbi_lines; i++ )
             {
-                decklink_ctx->unpack_line( frame_ptr, anc_buf_pos, width );
+                if( decklink_ctx->unpack_line )
+                    decklink_ctx->unpack_line( frame_ptr, anc_buf_pos, width );
                 anc_buf_pos += anc_line_stride / 2;
                 frame_ptr += stride / 4;
                 last_line = sdi_next_line( decklink_opts_->video_format, last_line );
@@ -2073,7 +2088,8 @@ HRESULT DeckLinkCaptureDelegate::timedVideoInputFrameArrived( IDeckLinkVideoInpu
             }
 
             /* Scale the lines from 10-bit to 8-bit */
-            decklink_ctx->downscale_line( anc_buf, vbi_buf, num_anc_lines );
+            if( decklink_ctx->downscale_line )
+                decklink_ctx->downscale_line( anc_buf, vbi_buf, num_anc_lines );
             anc_buf_pos = anc_buf;
 
             /* Handle Video Index information */
@@ -3414,8 +3430,8 @@ static void *probe_stream( void *ptr )
      */
     user_opts->video_format = decklink_opts->video_format;
     fmt = getVideoFormatByOBEName(user_opts->video_format);
-    printf("%s() Detected signal: user_opts->video_format = %d %s\n", __func__, 
-        user_opts->video_format, getModeName(fmt->bmd_name));
+    printf("%s() Detected signal: user_opts->video_format = %d %s\n", __func__,
+        user_opts->video_format, fmt ? getModeName(fmt->bmd_name) : "unknown");
 
 #define ALLOC_STREAM(nr) \
     streams[cur_stream] = (obe_int_input_stream_t*)calloc(1, sizeof(*streams[cur_stream])); \
