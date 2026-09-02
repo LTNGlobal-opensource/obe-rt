@@ -125,8 +125,6 @@ static size_t smpte337_detector_write_32b(struct smpte337_detector_s *ctx, uint8
 
 static void run_detector(struct smpte337_detector_s *ctx)
 {
-	int skipped = 0;
-
 #define PEEK_LEN 16
 	uint8_t dat[PEEK_LEN];
 	while(1) {
@@ -173,11 +171,9 @@ static void run_detector(struct smpte337_detector_s *ctx)
 
 			} else {
 				rb_discard(ctx->rb, 1); /* Pop a byte, and continue the search */
-				skipped++;
 			}
 		} else {
 			rb_discard(ctx->rb, 1); /* Pop a byte, and continue the search */
-			skipped++;
 		}
 
 	} /* while */
