@@ -118,11 +118,11 @@ AC_CHECK_HEADERS([BlueDriver_p.h], HEADER_BLUEFISH444="yes")
 #fi
 AM_CONDITIONAL(BLUEFISH444, test x"$HEADER_BLUEFISH444" == x"yes")
 
-## Check for x265 (optional)
+# Check for x265 (optional)
 AC_CHECK_HEADERS([x265.h], HEADER_LIBX265="yes")
-#if test "x$HEADER_LIBX265" == "xyes" ; then
-#    LDFLAGS+=" -lx265 "
-#fi
+if test "x$HEADER_LIBX265" == "xyes" ; then
+    LDFLAGS+=" -lx265 "
+fi
 AM_CONDITIONAL(LIBX265, test x"$HEADER_LIBX265" == x"yes")
 
 ## Check for libklsmpte2064 (optional)
