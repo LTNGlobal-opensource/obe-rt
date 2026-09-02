@@ -208,8 +208,11 @@ int decode_vbi( obe_t *h, obe_sdi_non_display_data_t *non_display_data, uint8_t 
                         break;
                 }
 
-                frame_data->lines[frame_data->num_lines++]= sliced[i].line;
-                skip = 1;
+                if( frame_data )
+                {
+                    frame_data->lines[frame_data->num_lines++]= sliced[i].line;
+                    skip = 1;
+                }
             }
 
             /* AFD is a superset of WSS so don't duplicate it */

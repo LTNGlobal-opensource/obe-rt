@@ -380,6 +380,11 @@ static void *videoThreadFunc(void *p)
 		raw_frame->timebase_den = v4l2_opts->timebase_den;
 
 		raw_frame->alloc_img.plane[0] = (uint8_t *)calloc(1, v4l2_opts->width * v4l2_opts->height * 2);
+		if (!raw_frame->alloc_img.plane[0]) {
+			syslog(LOG_ERR, "[v4l2]: Malloc failed\n");
+			free(raw_frame);
+			continue;
+		}
 		raw_frame->alloc_img.plane[1] = raw_frame->alloc_img.plane[0] + (v4l2_opts->width * v4l2_opts->height);
 		raw_frame->alloc_img.plane[2] = raw_frame->alloc_img.plane[1] + ((v4l2_opts->width * v4l2_opts->height) / 4);
 		raw_frame->alloc_img.plane[3] = 0;

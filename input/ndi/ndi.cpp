@@ -520,6 +520,11 @@ lastTimestamp = frame->timestamp;
 	rf->timebase_den = opts->timebase_den;
 
 	rf->alloc_img.plane[0] = (uint8_t *)calloc(1, opts->width * opts->height * 2);
+	if (!rf->alloc_img.plane[0]) {
+		fprintf(stderr, MODULE_PREFIX "Malloc failed\n");
+		free(rf);
+		return;
+	}
 	rf->alloc_img.plane[1] = rf->alloc_img.plane[0] + (opts->width * opts->height);
 	rf->alloc_img.plane[2] = rf->alloc_img.plane[1] + ((opts->width * opts->height) / 4);
 	rf->alloc_img.plane[3] = 0;

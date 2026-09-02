@@ -184,7 +184,7 @@ static int cb_EIA_608(void *callback_context, struct klvanc_context_s *vanchdl, 
 
 static int findOutputStreamIdByFormat(vega_ctx_t *ctx, enum stream_type_e stype, enum stream_formats_e fmt)
 {
-	if (ctx && ctx->device == NULL)
+	if (!ctx || ctx->device == NULL)
 		return -1;
 
 	for(int i = 0; i < ctx->device->num_input_streams; i++) {

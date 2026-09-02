@@ -53,6 +53,8 @@ int ltnpthread_setname_np(pthread_t thread, const char *name)
 const char *obe_ascii_datetime()
 {
 	char *s = calloc(1, 64);
+	if (!s)
+		return NULL;
 	time_t now;
 	time(&now);
 	sprintf(s, "%s", ctime(&now));
@@ -511,10 +513,10 @@ obe_encoder_t *get_encoder( obe_t *h, int output_stream_id )
 /* Output */
 int obe_core_get_output_stream_queue_depth(obe_t *h, int output_stream_id)
 {
-    obe_queue_t *q = &h->encoders[output_stream_id]->queue;
-    if (!q)
+    if (output_stream_id < 0 || output_stream_id >= MAX_STREAMS || !h->encoders[output_stream_id])
         return -1;
 
+    obe_queue_t *q = &h->encoders[output_stream_id]->queue;
     return q->size;
 }
 

@@ -398,7 +398,7 @@ static void applyEffects(obe_output_stream_t *output_stream, obe_raw_frame_t *rf
         uint32_t *l = (uint32_t *)rf->audio_frame.audio_data[0];
         uint32_t *r = (uint32_t *)rf->audio_frame.audio_data[1];
         for (int i = 0; i < rf->audio_frame.num_samples; i++) {
-            if (g_filter_audio_effect_pcm & (1 << 0)) {
+            if (r && (g_filter_audio_effect_pcm & (1 << 0))) {
                 *(r++) = 0; /* Mute Right */
             }
             if (g_filter_audio_effect_pcm & (1 << 1)) {
@@ -411,7 +411,7 @@ static void applyEffects(obe_output_stream_t *output_stream, obe_raw_frame_t *rf
         int32_t *l = (int32_t *)rf->audio_frame.audio_data[0];
         int32_t *r = (int32_t *)rf->audio_frame.audio_data[1];
         for (int i = 0; i < rf->audio_frame.num_samples; i++) {
-            if (g_filter_audio_effect_pcm & (1 << 2)) {
+            if (r && (g_filter_audio_effect_pcm & (1 << 2))) {
                 *(r++) = rand(); /* Right */
             }
             if (g_filter_audio_effect_pcm & (1 << 3)) {
@@ -424,7 +424,7 @@ static void applyEffects(obe_output_stream_t *output_stream, obe_raw_frame_t *rf
         int32_t *l = (int32_t *)rf->audio_frame.audio_data[0];
         int32_t *r = (int32_t *)rf->audio_frame.audio_data[1];
         for (int i = 0; i < rf->audio_frame.num_samples / 16; i++) {
-            if (g_filter_audio_effect_pcm & (1 << 4)) {
+            if (r && (g_filter_audio_effect_pcm & (1 << 4))) {
                 *(r++) = -200000000; /* Right */
                 *(r++) = -200000000; /* Right */
                 *(r++) = -200000000; /* Right */
@@ -445,7 +445,7 @@ static void applyEffects(obe_output_stream_t *output_stream, obe_raw_frame_t *rf
         int32_t *l = (int32_t *)rf->audio_frame.audio_data[0];
         int32_t *r = (int32_t *)rf->audio_frame.audio_data[1];
         for (int i = 0; i < rf->audio_frame.num_samples; i++) {
-            if (g_filter_audio_effect_pcm & (1 << 6)) {
+            if (r && (g_filter_audio_effect_pcm & (1 << 6))) {
                 *r /= 4; /* Right */
                  r++;
             }
@@ -460,7 +460,7 @@ static void applyEffects(obe_output_stream_t *output_stream, obe_raw_frame_t *rf
         int32_t *l = (int32_t *)rf->audio_frame.audio_data[0];
         int32_t *r = (int32_t *)rf->audio_frame.audio_data[1];
         for (int i = 0; i < rf->audio_frame.num_samples; i++) {
-            if (g_filter_audio_effect_pcm & (1 << 8)) {
+            if (r && (g_filter_audio_effect_pcm & (1 << 8))) {
                 *r *= 8; /* Right */
                  r++;
             }

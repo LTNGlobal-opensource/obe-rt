@@ -224,6 +224,9 @@ static void processCodecOutput(struct context_s *ctx, AVPacket *pkt, AVFifoBuffe
 
 static void *aac_start_encoder(void *ptr)
 {
+    if (!ptr)
+        return NULL;
+
     struct context_s *ctx = calloc(1, sizeof(*ctx));
     ctx->enc_params = ptr;
     ctx->h = ctx->enc_params->h;

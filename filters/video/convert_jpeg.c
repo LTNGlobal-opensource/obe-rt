@@ -25,6 +25,10 @@ int filter_compress_alloc(struct filter_compress_ctx **p, const char *filename)
 		return -1;
 
 	ctx->filename = strdup(filename);
+	if (!ctx->filename) {
+		free(ctx);
+		return -1;
+	}
 
 	*p = ctx;
 	return 0;

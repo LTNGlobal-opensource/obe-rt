@@ -348,7 +348,7 @@ static int handle_video_frame( linsys_opts_t *linsys_opts, uint8_t *data )
 
     output->csp = AV_PIX_FMT_YUV422P10;
     const AVPixFmtDescriptor *d = av_pix_fmt_desc_get(raw_frame->alloc_img.csp);
-    output->planes = d->nb_components;
+    output->planes = d ? d->nb_components : 0;
     output->width = linsys_ctx->width;
     output->height = linsys_opts->height;
 
@@ -590,7 +590,7 @@ static int handle_video_frame( linsys_opts_t *linsys_opts, uint8_t *data )
 
             raw_frame->img.csp = AV_PIX_FMT_YUV422P10;
             const AVPixFmtDescriptor *d = av_pix_fmt_desc_get(raw_frame->alloc_img.csp);
-            raw_frame->img.planes = d->nb_components;
+            raw_frame->img.planes = d ? d->nb_components : 0;
             raw_frame->img.plane[0] = (uint8_t*)y_src;
             raw_frame->img.plane[1] = (uint8_t*)u_src;
             raw_frame->img.plane[2] = (uint8_t*)v_src;

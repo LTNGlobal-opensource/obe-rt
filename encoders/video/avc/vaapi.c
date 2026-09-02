@@ -2737,7 +2737,8 @@ static void *avc_vaapi_start_encoder( void *ptr )
 		struct userdata_s *ud = userdata_calloc();
 
 		/* Cache the upstream timing information in userdata. */
-		userdata_set(ud, &rf->avfm);
+		if (ud)
+			userdata_set(ud, &rf->avfm);
 
 		/* If the AFD has changed, then change the SAR. x264 will write the SAR at the next keyframe
 		 * TODO: allow user to force keyframes in order to be frame accurate.

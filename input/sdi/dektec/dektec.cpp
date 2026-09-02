@@ -547,7 +547,7 @@ static void deliver_video_frame(dektec_opts_t *opts, unsigned char *plane, int s
 
 		raw_frame->alloc_img.csp = ctx->codec->pix_fmt;
 		const AVPixFmtDescriptor *d = av_pix_fmt_desc_get(raw_frame->alloc_img.csp);
-		raw_frame->alloc_img.planes = d->nb_components;
+		raw_frame->alloc_img.planes = d ? d->nb_components : 0;
 		raw_frame->alloc_img.width = opts->width;
 		raw_frame->alloc_img.height = opts->height;
 		raw_frame->alloc_img.format = opts->video_format;

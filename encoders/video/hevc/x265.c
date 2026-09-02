@@ -485,22 +485,27 @@ static int convert_obe_to_x265_pic(struct context_s *ctx, x265_picture *p, struc
 		/* Start time - Always the last SEI */
 		static uint32_t framecount = 0;
 		x = &p->userSEI.payloads[count - 1];
-		x->payloadType = (SEIPayloadType)USER_DATA_AVC_UNREGISTERED;
-		x->payloadSize = SEI_TIMESTAMP_PAYLOAD_LENGTH;
 		x->payload = sei_timestamp_alloc(); /* Freed when we enter the function prior to pic re-init. */
+		if (x->payload) {
+			x->payloadType = (SEIPayloadType)USER_DATA_AVC_UNREGISTERED;
+			x->payloadSize = SEI_TIMESTAMP_PAYLOAD_LENGTH;
 
-		struct timeval tv;
-		gettimeofday(&tv, NULL);
+			struct timeval tv;
+			gettimeofday(&tv, NULL);
 
-		sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 1, framecount);
-		sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 2, avfm_get_hw_received_tv_sec(&rf->avfm));
-		sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 3, avfm_get_hw_received_tv_usec(&rf->avfm));
-		sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 4, tv.tv_sec);
-		sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 5, tv.tv_usec);
-		sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 6, 0);
-		sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 7, 0);
-		sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 8, 0);
-		sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 9, 0);
+			sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 1, framecount);
+			sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 2, avfm_get_hw_received_tv_sec(&rf->avfm));
+			sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 3, avfm_get_hw_received_tv_usec(&rf->avfm));
+			sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 4, tv.tv_sec);
+			sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 5, tv.tv_usec);
+			sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 6, 0);
+			sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 7, 0);
+			sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 8, 0);
+			sei_timestamp_field_set(x->payload, SEI_TIMESTAMP_PAYLOAD_LENGTH, 9, 0);
+		} else {
+			x->payloadType = (SEIPayloadType)0;
+			x->payloadSize = 0;
+		}
 
 		/* The remaining 8 bytes (time exit from compressor fields)
 		 * will be filled when the frame exists the compressor. */
