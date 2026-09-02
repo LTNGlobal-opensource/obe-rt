@@ -285,7 +285,7 @@ static __inline__ void ltn_histogram_interval_print(int fd, struct ltn_histogram
 			continue;
 
 		char timestamp[128];
-		sprintf(timestamp, "%s", ctime(&b->lastUpdate.tv_sec));
+		snprintf(timestamp, sizeof(timestamp), "%s", ctime(&b->lastUpdate.tv_sec));
 		timestamp[strlen(timestamp) - 1] = 0; /* Trim trailing CR */
 
 		dprintf(fd,
@@ -333,7 +333,7 @@ static __inline__ void ltn_histogram_summary_print(int fd, struct ltn_histogram_
 
 	struct ltn_histogram_s *h;
 	char name[256];
-	sprintf(name, "%s - Summarized into buckets of %d ms", ctx->name, bucketSizeMs);
+	snprintf(name, sizeof(name), "%s - Summarized into buckets of %d ms", ctx->name, bucketSizeMs);
 	ltn_histogram_alloc(&h, name, ctx->minValMs, ctx->maxValMs);
 
 	/* Walk all of the buckets based on ms, grab the bucket and summary it into a new histogram with a new bucketsize */
