@@ -10,7 +10,7 @@ void obe_init_queue(obe_queue_t *queue, char *name)
     pthread_mutex_init( &queue->mutex, NULL );
     pthread_cond_init( &queue->in_cv, NULL );
     pthread_cond_init( &queue->out_cv, NULL );
-    strcpy(&queue->name[0], name);
+    snprintf(queue->name, sizeof(queue->name), "%s", name);
 }
 
 void obe_destroy_queue( obe_queue_t *queue )

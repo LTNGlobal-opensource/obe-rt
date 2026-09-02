@@ -173,7 +173,7 @@ static int audio_remapping_configure(obe_output_stream_t *output_stream)
     int rule_count = 0;
     char *save = NULL;
     char tmp[256] = { 0 };
-    strcpy(tmp, output_stream->audio_remap);
+    snprintf(tmp, sizeof(tmp), "%s", output_stream->audio_remap);
 
     char *rule = strtok_r(tmp, "-", &save);
     while (rule) {
@@ -223,7 +223,7 @@ static int audio_mute_configure(obe_output_stream_t *output_stream)
     int rule_count = 0;
     char *save = NULL;
     char tmp[256] = { 0 };
-    strcpy(tmp, output_stream->audio_mute);
+    snprintf(tmp, sizeof(tmp), "%s", output_stream->audio_mute);
 
     char *rule = strtok_r(tmp, "_", &save);
     while (rule) {

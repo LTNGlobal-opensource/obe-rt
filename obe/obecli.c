@@ -3268,11 +3268,11 @@ static void *runtime_statistics_thread(void *p)
     
     if (strcmp(g_device_input_type, "decklink") == 0) {
         switch (cli.input.card_idx) {
-        case 0: strcpy(g_device_input_port, "A"); break;
-        case 1: strcpy(g_device_input_port, "C"); break;
-        case 2: strcpy(g_device_input_port, "B"); break;
-        case 3: strcpy(g_device_input_port, "C"); break;
-        default: strcpy(g_device_input_port, "?"); break;
+        case 0: snprintf(g_device_input_port, sizeof(g_device_input_port), "A"); break;
+        case 1: snprintf(g_device_input_port, sizeof(g_device_input_port), "C"); break;
+        case 2: snprintf(g_device_input_port, sizeof(g_device_input_port), "B"); break;
+        case 3: snprintf(g_device_input_port, sizeof(g_device_input_port), "C"); break;
+        default: snprintf(g_device_input_port, sizeof(g_device_input_port), "?"); break;
         }
     }
 

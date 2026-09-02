@@ -788,16 +788,16 @@ static int reconfigure_encoder(struct context_s *ctx)
 
 	char preset_name[64];
 	if (strlen(g_video_encoder_preset_name) > 0) {
-		strcpy(preset_name, g_video_encoder_preset_name);
+		snprintf(preset_name, sizeof(preset_name), "%s", g_video_encoder_preset_name);
 	} else {
-		strcpy(preset_name, "ultrafast");
+		snprintf(preset_name, sizeof(preset_name), "ultrafast");
 	}
 
 	char tuning_name[64];
 	if (strlen(g_video_encoder_tuning_name) > 0) {
-		strcpy(tuning_name, g_video_encoder_tuning_name);
+		snprintf(tuning_name, sizeof(tuning_name), "%s", g_video_encoder_tuning_name);
 	} else {
-		strcpy(tuning_name, "");
+		tuning_name[0] = '\0';
 	}
 
 	int ret;

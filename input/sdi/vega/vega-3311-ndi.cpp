@@ -495,7 +495,7 @@ int vega_ndi_start(vega_opts_t *opts)
 		/* Process the IPS */
 		char *pos = rindex(opts->ndi_name, '@');
 		if (pos && pos[1] == ' ') {
-			strcpy(&extraIPS[0], pos + 2);
+			snprintf(&extraIPS[0], sizeof(extraIPS), "%s", pos + 2);
 		}
 	}
 
@@ -573,7 +573,7 @@ int vega_ndi_start(vega_opts_t *opts)
 
 	/* Removed the trailing ' @ blah' */
 	char tname[256];
-	strcpy(tname, opts->ndi_name);
+	snprintf(tname, sizeof(tname), "%s", opts->ndi_name);
 	char *t = strstr(tname, " @ ");
 	if (t) {
 		*t = 0;
