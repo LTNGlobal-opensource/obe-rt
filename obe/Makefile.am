@@ -155,18 +155,29 @@ obecli_SOURCES += ../common/vancprocessor.c
 obecli_SOURCES += ../common/scte104filtering.c
 obecli_SOURCES += ltn_ws.c
 obecli_SOURCES += osd.c
-if AVFOUNDATION
-else
+if ARCH_X86_64
 obecli_SOURCES += x86_sdi.o
-obecli_SOURCES += vfilter.o
 endif
 
-if AVFOUNDATION
+if ARCH_AARCH64
+# vfilter's SIMD row functions: x86 yasm/nasm asm everywhere except macOS
+# (doesn't link on mac, see comments in filters/video/video.c), NEON
+# intrinsics C on aarch64/arm64 (e.g. Apple Silicon).
+obecli_SOURCES += ../filters/video/aarch64/vfilter_neon.c
 else
-obecli_DEPENDENCIES  = x86_sdi.o
-obecli_DEPENDENCIES += vfilter.o
+if ARCH_X86_64
+obecli_SOURCES += vfilter.o
+endif
+endif
 
-obecli_LDFLAGS = vfilter.o x86_sdi.o
+if ARCH_X86_64
+obecli_DEPENDENCIES  = x86_sdi.o
+obecli_LDFLAGS = x86_sdi.o
+endif
+
+if ARCH_X86_64
+obecli_DEPENDENCIES += vfilter.o
+obecli_LDFLAGS += vfilter.o
 endif
 
 libklvanc_noinst_includedir = $(includedir)

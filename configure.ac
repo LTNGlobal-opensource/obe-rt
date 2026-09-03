@@ -91,6 +91,27 @@ if test "x$HEADER_AVFOUNDATION" == "xyes" ; then
 fi
 AM_CONDITIONAL(AVFOUNDATION, test x"$HEADER_AVFOUNDATION" == x"yes")
 
+# NEON intrinsics (filters/video/aarch64/vfilter_neon.c) replace the x86
+# yasm/nasm SIMD (filters/video/x86/vfilter.asm) on aarch64/arm64 hosts,
+# e.g. Apple Silicon Macs. This is a CPU-architecture check, independent
+# of AVFOUNDATION (which only indicates "building on macOS" and is also
+# true for Intel Macs, where the x86 SIMD path still applies).
+case "$host_cpu" in
+  aarch64* | arm64*)
+    ARCH_AARCH64="yes"
+    ;;
+esac
+AM_CONDITIONAL(ARCH_AARCH64, test x"$ARCH_AARCH64" == x"yes")
+
+# 64-bit x86 hosts (Linux/Intel-Mac amd64), as opposed to the aarch64/arm64
+# check above. Matches the "-m amd64" yasm target used for x86_sdi.o/vfilter.o.
+case "$host_cpu" in
+  x86_64* | amd64*)
+    ARCH_X86_64="yes"
+    ;;
+esac
+AM_CONDITIONAL(ARCH_X86_64, test x"$ARCH_X86_64" == x"yes")
+
 AC_CHECK_HEADERS([Processing.NDI.Lib.h], HEADER_NDILIB="yes")
 if test "x$HEADER_NDILIB" == "xyes" ; then
 #    LDFLAGS+=" -lndi "

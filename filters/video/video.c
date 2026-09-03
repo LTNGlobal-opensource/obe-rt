@@ -30,6 +30,9 @@
 #include "cc.h"
 #include "dither.h"
 #include "x86/vfilter.h"
+#if defined(__aarch64__) || defined(__arm64__)
+#include "aarch64/vfilter_neon.h"
+#endif
 #include "input/sdi/sdi.h"
 
 #define PREFIX "[video filter]: "
@@ -295,6 +298,14 @@ static void init_filter( obe_vid_filter_ctx_t *vfilt )
         vfilt->dither_row_10_to_8 = obe_dither_row_10_to_8_avx;
 #endif
     }
+
+#if defined(__aarch64__) || defined(__arm64__)
+    /* NEON is baseline on all AArch64 hosts (e.g. Apple Silicon), so unlike
+     * the x86 paths above there's no CPU-feature flag to gate this on. */
+    vfilt->downsample_chroma_row_top = obe_downsample_chroma_row_top_neon;
+    vfilt->downsample_chroma_row_bottom = obe_downsample_chroma_row_bottom_neon;
+    vfilt->dither_row_10_to_8 = obe_dither_row_10_to_8_neon;
+#endif
 }
 
 static void blank_line( uint16_t *y, uint16_t *u, uint16_t *v, int width )
