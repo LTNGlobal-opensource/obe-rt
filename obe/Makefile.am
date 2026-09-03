@@ -1,4 +1,4 @@
-AUTOMAKE_OPTIONS = foreign
+AUTOMAKE_OPTIONS = foreign subdir-objects
 GIT_VERSION := $(shell git describe --abbrev=8 --dirty --always --tags)
 
 VERSION_MAJOR = 4
