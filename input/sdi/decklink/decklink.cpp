@@ -3180,6 +3180,9 @@ static int open_card( decklink_opts_t *decklink_opts, int allowFormatDetection)
         }
     }
 
+    /* Removed in 2023. Added again in 2026 to help debug SCTE104 in production. */
+    decklink_ctx->h->verbose_bitmask = INPUTSOURCE__SDI_VANC_DISCOVERY_SCTE104;
+
     decklink_ctx->dec = avcodec_find_decoder( AV_CODEC_ID_V210 );
     if( !decklink_ctx->dec )
     {
