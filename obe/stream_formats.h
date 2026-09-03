@@ -92,6 +92,7 @@ enum stream_formats_e
     VIDEO_HEVC_VEGA3311,
     SMPTE2031, /* RDD8 WST teletext subtitles */
     VIDEO_AVC_VEGA3311,
+    VIDEO_AVC_MACOS_VIDEOTOOLBOX,
 };
 
 const char *stream_format_name(enum stream_formats_e id);

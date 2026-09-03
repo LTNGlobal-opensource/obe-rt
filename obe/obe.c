@@ -1578,6 +1578,28 @@ int obe_start( obe_t *h )
                 ltnpthread_setname_np(h->encoders[h->num_encoders]->encoder_thread, "obe-vid-hevcva");
             }
 #endif
+#if defined(__APPLE__)
+            else if (ostream->stream_format == VIDEO_AVC_MACOS_VIDEOTOOLBOX)
+            {
+                vid_enc_params = calloc( 1, sizeof(*vid_enc_params) );
+                if( !vid_enc_params )
+                {
+                    fprintf( stderr, "Malloc failed\n" );
+                    goto fail;
+                }
+                vid_enc_params->h = h;
+                vid_enc_params->encoder = h->encoders[h->num_encoders];
+                h->encoders[h->num_encoders]->is_video = 1;
+
+                memcpy(&vid_enc_params->avc_param, &ostream->avc_param, sizeof(x264_param_t));
+                if (pthread_create(&h->encoders[h->num_encoders]->encoder_thread, NULL, avc_videotoolbox_obe_encoder.start_encoder, (void*)vid_enc_params) < 0)
+                {
+                    fprintf( stderr, "Couldn't create AVC VideoToolbox encode thread\n" );
+                    goto fail;
+                }
+                ltnpthread_setname_np(h->encoders[h->num_encoders]->encoder_thread, "obe-vid-vtbox");
+            }
+#endif
             else if (ostream->stream_format == VIDEO_HEVC_GPU_NVENC_AVCODEC)
             {
                 x264_param_t *x264_param = &ostream->avc_param;

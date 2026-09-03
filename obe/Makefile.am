@@ -115,6 +115,7 @@ endif
 if AVFOUNDATION
 obecli_SOURCES += ../input/avfoundation/avf_capture.m
 obecli_SOURCES += ../input/avfoundation/avfoundation.cpp
+obecli_SOURCES += ../encoders/video/avc/videotoolbox.c
 endif
  
 obecli_SOURCES += ../filters/audio/audio.c

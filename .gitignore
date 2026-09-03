@@ -24,6 +24,7 @@ config.log
 x264_config.h
 x264
 checkasm
+.dirstamp
 
 *.264
 *.h264

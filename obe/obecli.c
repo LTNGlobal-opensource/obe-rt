@@ -947,6 +947,11 @@ static int set_stream( char *command, obecli_command_t *child )
                 if (strcasecmp(video_codec, "HEVC_CPU_AVCODEC") == 0)
                     video_codec_id = 7; /* HEVC via AVCODEC (CPU encode) */
 #endif
+#if defined(__APPLE__)
+                else
+                if (strcasecmp(video_codec, "AVC_VIDEOTOOLBOX") == 0)
+                    video_codec_id = 12; /* AVC via Apple VideoToolbox */
+#endif
                 else
                 if (strcasecmp(video_codec, "HEVC_GPU_NVENC_AVCODEC") == 0)
                     video_codec_id = 8; /* HEVC via AVCODEC (CPU encode) */
@@ -1069,6 +1074,9 @@ extern char g_video_encoder_tuning_name[64];
                 } else
                 if (video_codec_id == 11) {
                     cli.output_streams[output_stream_id].stream_format = VIDEO_AVC_VEGA3311;
+                } else
+                if (video_codec_id == 12) {
+                    cli.output_streams[output_stream_id].stream_format = VIDEO_AVC_MACOS_VIDEOTOOLBOX;
                 }
 
                 avc_param->rc.i_vbv_max_bitrate = obe_otoi( vbv_maxrate, 0 );
@@ -2615,7 +2623,9 @@ static int show_output_streams( char *command, obecli_command_t *child )
                 printf( "Video: HEVC (AVCODEC GPU NVENC)\n" );
             else if (output_stream->stream_format == VIDEO_HEVC_CPU_AVCODEC)
                 printf( "Video: HEVC (AVCODEC CPU)\n" );
-            else 
+            else if (output_stream->stream_format == VIDEO_AVC_MACOS_VIDEOTOOLBOX)
+                printf( "Video: AVC (VideoToolbox)\n" );
+            else
                 printf( "Video: AVC OR HEVC\n");
         }
         else if( input_stream->stream_type == STREAM_TYPE_AUDIO )
@@ -2955,6 +2965,15 @@ static void _usage(const char *prog, int exitcode)
         "false"
 #endif
     );
+
+    printf("Supports  AVC via VideoToolBox: %s\n",
+#if defined(__APPLE__)
+	"true"
+#else
+	"false"
+#endif
+    );
+
     printf("Supports YUV VIA DekTec: %s\n",
 #if HAVE_DTAPI_H
         "true"
